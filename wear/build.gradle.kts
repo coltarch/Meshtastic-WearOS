@@ -17,41 +17,71 @@
 
 import com.android.build.api.dsl.ApplicationExtension
 import org.meshtastic.buildlogic.configProperties
+import org.meshtastic.buildlogic.resolveVersionInfo
+import java.util.Properties
+
+val versionInfo = resolveVersionInfo()
 
 plugins {
     alias(libs.plugins.meshtastic.android.application)
     alias(libs.plugins.meshtastic.android.application.flavors)
     alias(libs.plugins.meshtastic.android.application.compose)
-    id("meshtastic.koin")
+    alias(libs.plugins.meshtastic.koin)
+}
+
+val keystorePropertiesFile = isolated.rootProject.projectDirectory.file("keystore.properties").asFile
+val keystoreProperties = Properties()
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 configure<ApplicationExtension> {
     namespace = "org.meshtastic.wear"
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = isolated.rootProject.projectDirectory.file("config/debug.keystore").asFile
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
     defaultConfig {
         applicationId = configProperties.getProperty("APPLICATION_ID")
-        versionCode = 1
-        versionName = configProperties.getProperty("VERSION_NAME_BASE")
+        versionCode = versionInfo.versionCode
+        versionName = versionInfo.versionName
 
-        buildConfigField("String", "MIN_FW_VERSION", "\"${configProperties.getProperty("MIN_FW_VERSION")}\"")
-        buildConfigField("String", "ABS_MIN_FW_VERSION", "\"${configProperties.getProperty("ABS_MIN_FW_VERSION")}\"")
+        buildConfigField("String", "MIN_FW_VERSION", "\"${versionInfo.minFwVersion}\"")
+        buildConfigField("String", "ABS_MIN_FW_VERSION", "\"${versionInfo.absMinFwVersion}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    productFlavors {
+        configureEach { versionName = "${defaultConfig.versionName} (${defaultConfig.versionCode}) $name" }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystoreProperties["storeFile"] != null) {
+                signingConfig = signingConfigs.named("release").get()
+            }
+            isDebuggable = false
         }
     }
 }
 
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
-        variant.flavorName?.let { flavor -> variant.applicationId = "com.geeksville.mesh.$flavor.debug" }
+        variant.flavorName?.let { flavor -> variant.applicationId.set("com.geeksville.mesh.$flavor.debug") }
     }
 }
 
@@ -64,7 +94,6 @@ dependencies {
     implementation(projects.core.di)
     implementation(projects.core.domain)
     implementation(projects.core.model)
-    implementation(projects.core.navigation)
     implementation(projects.core.network)
     implementation(projects.core.prefs)
     implementation(projects.core.repository)
@@ -73,23 +102,25 @@ dependencies {
     implementation(projects.core.ui)
 
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.wear.compose.foundation)
     implementation(libs.androidx.wear.compose.material3)
     implementation(libs.androidx.wear.compose.navigation)
     implementation(libs.androidx.wear.input)
-    implementation(libs.play.services.wearable)
-    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.usb.serial.android)
-
+    implementation(libs.compose.multiplatform.animation)
+    implementation(libs.compose.multiplatform.foundation)
+    implementation(libs.compose.multiplatform.resources)
+    implementation(libs.compose.multiplatform.runtime)
+    implementation(libs.compose.multiplatform.ui)
     implementation(libs.jetbrains.lifecycle.runtime.compose)
     implementation(libs.jetbrains.lifecycle.viewmodel.compose)
+    implementation(libs.kermit)
     implementation(libs.koin.android)
     implementation(libs.koin.compose.viewmodel)
-    implementation(libs.koin.annotations)
-    implementation(libs.kermit)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.play.services.wearable)
+    implementation(libs.usb.serial.android)
 }
