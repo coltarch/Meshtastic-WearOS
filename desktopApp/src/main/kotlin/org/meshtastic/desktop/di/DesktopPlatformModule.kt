@@ -65,6 +65,7 @@ import org.meshtastic.core.prefs.di.MeshDataStore
 import org.meshtastic.core.prefs.di.MeshLogDataStore
 import org.meshtastic.core.prefs.di.RadioDataStore
 import org.meshtastic.core.prefs.di.UiDataStore
+import org.meshtastic.core.prefs.di.WatchDataStore
 import org.meshtastic.core.prefs.di.asAnalyticsDataStore
 import org.meshtastic.core.prefs.di.asAppDataStore
 import org.meshtastic.core.prefs.di.asCustomEmojiDataStore
@@ -77,6 +78,7 @@ import org.meshtastic.core.prefs.di.asMeshDataStore
 import org.meshtastic.core.prefs.di.asMeshLogDataStore
 import org.meshtastic.core.prefs.di.asRadioDataStore
 import org.meshtastic.core.prefs.di.asUiDataStore
+import org.meshtastic.core.prefs.di.asWatchDataStore
 import org.meshtastic.desktop.DesktopBuildConfig
 import org.meshtastic.proto.ChannelSet
 import org.meshtastic.proto.LocalConfig
@@ -113,7 +115,7 @@ private class DesktopProcessLifecycleOwner : LifecycleOwner {
  * Desktop platform infrastructure module.
  *
  * Provides all platform-specific bindings that the real KMP `commonMain` implementations need:
- * - Named [DataStore]<[Preferences]> instances (12 preference stores + 1 core preferences store)
+ * - Named [DataStore]<[Preferences]> instances (13 preference stores + 1 core preferences store)
  * - Proto [DataStore] instances (LocalConfig, ModuleConfig, ChannelSet, LocalStats)
  * - [Lifecycle] (`ProcessLifecycle`)
  * - [BuildConfigProvider]
@@ -158,6 +160,7 @@ private fun desktopPreferencesDataStoreModule() = module {
     single<UiDataStore> { prefsStore("ui", get()).asUiDataStore() }
     single<MeshLogDataStore> { prefsStore("meshlog", get()).asMeshLogDataStore() }
     single<FilterDataStore> { prefsStore("filter", get()).asFilterDataStore() }
+    single<WatchDataStore> { prefsStore("watch", get()).asWatchDataStore() }
     single<CorePreferencesDataStore> { prefsStore("core_preferences", get()).asCorePreferencesDataStore() }
 }
 

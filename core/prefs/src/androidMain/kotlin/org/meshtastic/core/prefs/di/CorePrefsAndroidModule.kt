@@ -92,6 +92,10 @@ class CorePrefsAndroidModule {
     @Single
     fun provideFilterDataStore(context: Context, dispatchers: CoroutineDispatchers): FilterDataStore =
         store(context, dispatchers, legacyName = "filter-prefs", fileName = "filter_ds").asFilterDataStore()
+
+    @Single
+    fun provideWatchDataStore(context: Context, dispatchers: CoroutineDispatchers): WatchDataStore =
+        store(context, dispatchers, legacyName = "watch-prefs", fileName = "watch_ds").asWatchDataStore()
 }
 
 /**
