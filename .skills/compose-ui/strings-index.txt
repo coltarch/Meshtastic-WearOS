@@ -2001,6 +2001,17 @@ voltage
 wait_for_bluetooth_duration_seconds
 wake_on_tap_or_motion
 warning
+### WATCH ###
+watch_settings_title
+watch_sync_enabled_description
+watch_sync_enabled_label
+watch_sync_messages_description
+watch_sync_messages_label
+watch_sync_nodes_description
+watch_sync_nodes_label
+watch_sync_now_description
+watch_sync_now_label
+watch_sync_privacy_description
 waypoint_delete
 waypoint_edit
 waypoint_new

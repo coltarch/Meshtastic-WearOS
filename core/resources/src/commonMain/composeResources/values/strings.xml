@@ -2058,6 +2058,17 @@
     <string name="wait_for_bluetooth_duration_seconds">Wait for Bluetooth duration</string>
     <string name="wake_on_tap_or_motion">Wake on tap or motion</string>
     <string name="warning">Warning</string>
+    <!-- WATCH -->
+    <string name="watch_settings_title">Watch settings</string>
+    <string name="watch_sync_enabled_description">Send Meshtastic data to your connected Wear OS watch.</string>
+    <string name="watch_sync_enabled_label">Sync with watch</string>
+    <string name="watch_sync_messages_description">Keep recent message information up to date on your watch.</string>
+    <string name="watch_sync_messages_label">Sync messages</string>
+    <string name="watch_sync_nodes_description">Keep node information up to date on your watch.</string>
+    <string name="watch_sync_nodes_label">Sync nodes</string>
+    <string name="watch_sync_now_description">Request an immediate update using the options above.</string>
+    <string name="watch_sync_now_label">Sync now</string>
+    <string name="watch_sync_privacy_description">Only the node and message information you enable is shared with your connected Wear OS watch. Disable watch synchronization to stop future updates.</string>
     <string name="waypoint_delete">Delete waypoint?</string>
     <string name="waypoint_edit">Edit waypoint</string>
     <string name="waypoint_new">New waypoint</string>
