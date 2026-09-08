@@ -14,84 +14,99 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("TooGenericExceptionCaught")
-
 package org.meshtastic.core.service
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import co.touchlab.kermit.Logger
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 import org.koin.android.ext.android.inject
-import org.meshtastic.core.model.DataPacket
-import org.meshtastic.core.model.RadioController
-import org.meshtastic.core.model.WearableReply
+import org.meshtastic.core.di.CoroutineDispatchers
+import org.meshtastic.core.repository.usecase.SendMessageUseCase
 
-/** Listener that receives commands from the watch via the Wearable Message API. */
+/** Listener that receives validated commands from a watch through the Wearable Message API. */
 class PhoneWearableListenerService : WearableListenerService() {
-
     private val syncService: WearableSyncService by inject()
-    private val radioController: RadioController by inject()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val json = Json
+    private val sendMessageUseCase: SendMessageUseCase by inject()
+    private val dispatchers: CoroutineDispatchers by inject()
+    private val failureLogger = WearableFailureLogger(Logger.withTag("PhoneWearableListenerService"))
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        failureLogger.log(WearableFailureLog.UnexpectedCommand, throwable)
+    }
+    private val scope by lazy { CoroutineScope(SupervisorJob() + dispatchers.io + exceptionHandler) }
+    private val router = WearableIncomingActionRouter()
+    private val handler by lazy {
+        WearableIncomingActionHandler(
+            requestSync = syncService::forceSync,
+            sendMessage = { text, contactKey -> sendMessageUseCase(text, contactKey) },
+            openConversation = ::openConversation,
+        )
+    }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
-        Logger.d { "onMessageReceived: ${messageEvent.path} from ${messageEvent.sourceNodeId}" }
-        when (messageEvent.path) {
-            "/request_sync" -> {
-                syncService.forceSync(messageEvent.sourceNodeId)
+        val action = router.route(messageEvent.path, messageEvent.data, messageEvent.sourceNodeId)
+        when (action) {
+            WearableIncomingAction.Malformed -> {
+                Logger.w { "Rejected malformed wearable command" }
+                return
             }
 
-            "/send_message" -> {
-                handleSendMessage(messageEvent.data)
+            WearableIncomingAction.Unknown -> {
+                Logger.d { "Ignored unknown wearable command" }
+                return
             }
 
-            "/open_on_phone" -> {
-                handleOpenOnPhone(String(messageEvent.data))
-            }
+            else -> Logger.d { "Handling wearable command" }
         }
-    }
 
-    private fun handleSendMessage(data: ByteArray) {
         scope.launch {
             try {
-                val reply = json.decodeFromString<WearableReply>(String(data))
-                val packet =
-                    DataPacket(
-                        to = reply.address ?: DataPacket.ID_BROADCAST,
-                        channel = reply.channelIndex,
-                        text = reply.text,
-                    )
-                Logger.d { "Sending wearable reply to ${packet.to} on channel ${packet.channel}: ${packet.text}" }
-                radioController.sendMessage(packet)
-            } catch (e: Exception) {
-                Logger.e(e) { "Failed to handle wearable message" }
+                handler.handle(action)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IllegalArgumentException) {
+                failureLogger.log(WearableFailureLog.InvalidCommand, e)
+            } catch (e: IllegalStateException) {
+                failureLogger.log(WearableFailureLog.UnavailableCommand, e)
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                failureLogger.log(WearableFailureLog.FailedCommand, e)
             }
         }
     }
 
-    private fun handleOpenOnPhone(contactKey: String) {
+    private fun openConversation(contactKey: String) {
+        val uri =
+            Uri.Builder()
+                .scheme("https")
+                .authority("meshtastic.org")
+                .appendPath("messages")
+                .appendPath(contactKey)
+                .build()
+        val intent =
+            Intent(Intent.ACTION_VIEW, uri)
+                .setPackage(packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
         try {
-            val uri = Uri.parse("https://meshtastic.org/messages/$contactKey")
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            intent.setPackage(packageName) // Use setPackage instead of .`package`
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             startActivity(intent)
-            Logger.d { "Opening $contactKey on phone in app $packageName" }
-        } catch (e: Exception) {
-            Logger.e(e) { "Failed to open on phone" }
+            Logger.d { "Opened wearable conversation on phone" }
+        } catch (e: ActivityNotFoundException) {
+            failureLogger.log(WearableFailureLog.OpenConversation, e)
+        } catch (e: SecurityException) {
+            failureLogger.log(WearableFailureLog.OpenConversation, e)
         }
     }
 
     override fun onDestroy() {
+        scope.cancel()
         super.onDestroy()
-        // scope.cancel()
     }
 }

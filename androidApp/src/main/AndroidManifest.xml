@@ -286,6 +286,19 @@
                 android:resource="@xml/device_filter" />
         </activity>
 
+        <service
+            android:name="org.meshtastic.core.service.PhoneWearableListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" />
+                <data android:host="*" />
+                <data android:pathPrefix="/request_sync" />
+                <data android:pathPrefix="/send_message" />
+                <data android:pathPrefix="/open_on_phone" />
+            </intent-filter>
+        </service>
+
         <receiver android:name="org.meshtastic.core.service.BootCompleteReceiver"
             android:exported="false">
             <!-- handle boot events -->

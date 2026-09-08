@@ -14,31 +14,44 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("CyclomaticComplexMethod", "LongMethod", "MagicNumber", "TooGenericExceptionCaught")
+@file:OptIn(kotlinx.coroutines.FlowPreview::class)
+@file:Suppress("LongMethod")
 
 package org.meshtastic.core.service
 
 import android.content.Context
 import co.touchlab.kermit.Logger
-import com.google.android.gms.wearable.DataClient
-import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
-import org.meshtastic.core.model.Channel
-import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.common.util.nowMillis
+import org.meshtastic.core.common.util.safeCatching
+import org.meshtastic.core.di.CoroutineDispatchers
+import org.meshtastic.core.model.ContactKey
 import org.meshtastic.core.model.MessageStatus
+import org.meshtastic.core.model.Node
+import org.meshtastic.core.model.NodeAddress
 import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
 import org.meshtastic.core.model.WearableNode
@@ -47,280 +60,246 @@ import org.meshtastic.core.repository.PacketRepository
 import org.meshtastic.core.repository.RadioConfigRepository
 import org.meshtastic.core.repository.WatchPrefs
 import org.meshtastic.proto.Config.LoRaConfig
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.channels.Channel as CoroutineChannel
+import org.meshtastic.core.model.Channel as MeshChannel
 
-/**
- * Service that synchronizes phone data (nodes, messages) with the connected watch. Listens to preferences and
- * repository changes to push updates via the Wearable Data Layer.
- */
+/** Synchronizes phone repositories with connected Wear OS nodes through the Wearable Data Layer. */
 @Single
 class WearableSyncService(
-    private val context: Context,
+    context: Context,
     private val watchPrefs: WatchPrefs,
     private val nodeRepository: NodeRepository,
     private val packetRepository: PacketRepository,
     private val radioConfigRepository: RadioConfigRepository,
+    dispatchers: CoroutineDispatchers,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val dataClient: DataClient by lazy { Wearable.getDataClient(context) }
-    private val messageClient: MessageClient by lazy { Wearable.getMessageClient(context) }
-    private val nodeClient by lazy { Wearable.getNodeClient(context) }
+    private val failureLogger = WearableFailureLogger(Logger.withTag("WearableSyncService"))
+    private val serviceJob: Job = SupervisorJob()
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        failureLogger.log(WearableFailureLog.UnexpectedSynchronization, throwable)
+    }
+    private val scope = CoroutineScope(serviceJob + dispatchers.io + exceptionHandler)
+    private val dataClient = Wearable.getDataClient(context.applicationContext)
+    private val messageClient = Wearable.getMessageClient(context.applicationContext)
+    private val nodeClient = Wearable.getNodeClient(context.applicationContext)
     private val json = Json { ignoreUnknownKeys = true }
+    private val started = atomic(false)
+    private val stopped = atomic(false)
+    private val syncMutex = Mutex()
+    private val repositoryInvalidations = CoroutineChannel<Unit>(CoroutineChannel.CONFLATED)
 
-    init {
-        Logger.d { "WearableSyncService initializing" }
-        startSync()
-    }
+    /** Starts the process-lifetime collectors once. Repeated calls never create duplicate collectors. */
+    fun start() {
+        if (stopped.value) return
+        if (!started.compareAndSet(expect = false, update = true)) return
 
-    private fun normalizeKey(contactKey: String): String {
-        val isBroadcast = contactKey.endsWith(DataPacket.ID_BROADCAST)
-        return if (!isBroadcast && contactKey.length > 9) {
-            contactKey.takeLast(9) // Normalize PKI DM (8!ba012345) to legacy (!ba012345)
-        } else {
-            contactKey
-        }
-    }
+        Logger.d { "Wearable synchronization started" }
 
-    /** Triggers an immediate sync of all data to the watch. */
-    fun forceSync(nodeId: String? = null) {
-        Logger.d { "Manual sync requested${if (nodeId != null) " for node $nodeId" else ""}" }
         scope.launch {
-            val myNodeNum = nodeRepository.ourNodeInfo.value?.num ?: 0
-            val nodesMap = nodeRepository.nodeDBbyNum.value
-            val wearableNodes =
-                nodesMap.values
-                    .filter { it.num != myNodeNum }
-                    .map { node ->
-                        WearableNode(
-                            num = node.num,
-                            name = node.user.long_name,
-                            shortName = node.user.short_name,
-                            online = node.isOnline,
-                            battery = node.batteryLevel,
-                            snr = node.snr.takeIf { it != Float.MAX_VALUE },
-                            lastSeen = node.lastHeard.toLong() * 1000,
-                            favorite = node.isFavorite,
-                        )
-                    }
-            syncNodes(wearableNodes, nodeId)
+            repositoryInvalidations.receiveAsFlow().collectLatest { syncMutex.withLock { synchronizeConnectedWatch() } }
+        }
 
-            val channelSet = radioConfigRepository.channelSetFlow.first()
-            val loraConfig = channelSet.lora_config ?: LoRaConfig()
-            val wearableChannels =
-                channelSet.settings.mapIndexed { index, settings ->
-                    val channel = Channel(settings, loraConfig)
-                    val contactKey = "$index${DataPacket.ID_BROADCAST}"
-                    WearableChannel(index = index, name = channel.name, contactKey = contactKey)
-                }
-            syncChannels(wearableChannels, nodeId)
-
-            val contacts = packetRepository.getContacts().first()
-            val allWearableMessages = mutableListOf<WearableMessage>()
-
-            // 1. Placeholders
-            nodesMap.values
-                .filter { it.num != myNodeNum }
-                .forEach { node ->
-                    val contactKey = DataPacket.nodeNumToDefaultId(node.num)
-                    allWearableMessages.add(
-                        WearableMessage(
-                            uuid = node.num.toLong(),
-                            contactKey = contactKey,
-                            senderName = node.user.long_name,
-                            senderShortName = node.user.short_name,
-                            text = "No messages yet",
-                            isMe = false,
-                            timestamp = 0L,
-                            address = contactKey,
-                            channelIndex = 0,
-                            status = MessageStatus.RECEIVED,
-                        ),
-                    )
-                }
-
-            // 2. Real messages
-            contacts.keys.take(20).forEach { contactKey ->
-                val channelIndex = contactKey[0].digitToIntOrNull()
-                val isBroadcast = contactKey.endsWith(DataPacket.ID_BROADCAST)
-                val normalizedKey = normalizeKey(contactKey)
-
-                if (!isBroadcast && DataPacket.idToDefaultNodeNum(normalizedKey) == myNodeNum) {
-                    return@forEach
-                }
-
-                val threadInfo =
-                    if (isBroadcast && channelIndex != null) {
-                        val name = wearableChannels.getOrNull(channelIndex)?.name ?: "Channel $channelIndex"
-                        name to name.take(2).uppercase()
-                    } else {
-                        // For DMs, use the contact's name as the thread title
-                        val contactNode = nodesMap[DataPacket.idToDefaultNodeNum(normalizedKey)]
-                        (contactNode?.user?.long_name ?: normalizedKey) to (contactNode?.user?.short_name ?: "??")
-                    }
-
-                packetRepository
-                    .getMessagesFrom(
-                        contact = contactKey,
-                        limit = 10,
-                        getNode = { id ->
-                            nodesMap[DataPacket.idToDefaultNodeNum(id) ?: 0] ?: nodeRepository.getNode(id ?: "")
-                        },
-                    )
-                    .first()
-                    .forEach { msg ->
-                        allWearableMessages.add(
-                            WearableMessage(
-                                uuid = msg.uuid,
-                                contactKey = normalizedKey,
-                                senderName = threadInfo.first,
-                                senderShortName = threadInfo.second,
-                                text = msg.text,
-                                isMe = msg.fromLocal,
-                                timestamp = msg.receivedTime,
-                                address = if (isBroadcast) null else normalizedKey,
-                                channelIndex = channelIndex ?: 0,
-                                status = msg.status ?: MessageStatus.RECEIVED,
-                            ),
-                        )
-                    }
+        scope.launch {
+            combine(watchPrefs.pushToWatchEnabled, watchPrefs.syncNodesEnabled, watchPrefs.syncMessagesEnabled) {
+                    push,
+                    nodes,
+                    messages,
+                ->
+                Triple(push, nodes, messages)
             }
+                .distinctUntilChanged()
+                .collectLatest { (push, nodes, messages) ->
+                    if (push && (nodes || messages)) repositoryInvalidations.trySend(Unit)
+                }
+        }
 
-            val finalMessages = allWearableMessages.sortedByDescending { it.timestamp }.distinctBy { it.contactKey }
+        scope.launch { watchPrefs.syncRequest.drop(1).collect { repositoryInvalidations.trySend(Unit) } }
 
-            syncMessages(finalMessages, nodeId)
+        scope.launch {
+            merge(
+                nodeRepository.nodeDBbyNum.drop(1).map { Unit },
+                packetRepository.getContacts().drop(1).map { Unit },
+                radioConfigRepository.channelSetFlow.drop(1).map { Unit },
+            )
+                .debounce(REPOSITORY_SYNC_DEBOUNCE)
+                .collect { repositoryInvalidations.trySend(Unit) }
         }
     }
 
-    private fun startSync() {
-        // Sync when manually requested from phone
-        watchPrefs.syncRequest.onEach { forceSync() }.launchIn(scope)
+    /** Requests a full sync, optionally targeted to the Wear node that requested it. */
+    fun forceSync(targetNodeId: String? = null) {
+        start()
+        scope.launch { syncMutex.withLock { synchronizeConnectedWatch(targetNodeId) } }
+    }
 
-        // Sync node list when enabled
-        combine(
-            watchPrefs.pushToWatchEnabled,
-            watchPrefs.syncNodesEnabled,
-            nodeRepository.nodeDBbyNum,
-            nodeRepository.ourNodeInfo,
-        ) { push, sync, nodes, ourInfo ->
-            if (push && sync) {
-                val myNodeNum = ourInfo?.num ?: 0
-                val wearableNodes =
-                    nodes.values
-                        .filter { it.num != myNodeNum }
-                        .map { node ->
-                            WearableNode(
-                                num = node.num,
-                                name = node.user.long_name,
-                                shortName = node.user.short_name,
-                                online = node.isOnline,
-                                battery = node.batteryLevel,
-                                snr = node.snr.takeIf { it != Float.MAX_VALUE },
-                                lastSeen = node.lastHeard.toLong() * 1000,
-                                favorite = node.isFavorite,
-                            )
-                        }
-                syncNodes(wearableNodes)
-            }
+    /** Cancels all synchronization observers and pending work owned by this service. */
+    fun stop() {
+        if (stopped.compareAndSet(expect = false, update = true)) {
+            scope.cancel()
+            Logger.d { "Wearable synchronization stopped" }
         }
-            .launchIn(scope)
+    }
 
-        // Sync messages and channels when enabled
-        watchPrefs.pushToWatchEnabled.onEach { if (it) forceSync() }.launchIn(scope)
+    private suspend fun synchronizeConnectedWatch(targetNodeId: String? = null) {
+        if (
+            !watchPrefs.pushToWatchEnabled.value ||
+            (!watchPrefs.syncNodesEnabled.value && !watchPrefs.syncMessagesEnabled.value)
+        ) {
+            return
+        }
 
-        watchPrefs.syncMessagesEnabled.onEach { if (it) forceSync() }.launchIn(scope)
+        val targetNodeIds =
+            targetNodeId?.let(::listOf)
+                ?: safeCatching { nodeClient.connectedNodes.await().map { it.id } }
+                    .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
+                    .getOrDefault(emptyList())
+        if (targetNodeIds.isEmpty()) return
 
-        nodeRepository.nodeDBbyNum.onEach { forceSync() }.launchIn(scope)
+        val nodesMap = nodeRepository.nodeDBbyNum.value
+        val myNodeNum = nodeRepository.ourNodeInfo.value?.num
 
-        packetRepository.getContacts().onEach { forceSync() }.launchIn(scope)
+        if (watchPrefs.syncNodesEnabled.value) {
+            val wearableNodes = nodesMap.values.filter { it.num != myNodeNum }.map { it.toWearableNode() }
+            sendPayload(PATH_NODES, KEY_NODES, json.encodeToString(wearableNodes), targetNodeIds)
+        }
+
+        if (watchPrefs.syncMessagesEnabled.value) {
+            val wearableChannels = createWearableChannels()
+            sendPayload(PATH_CHANNELS, KEY_CHANNELS, json.encodeToString(wearableChannels), targetNodeIds)
+
+            val wearableMessages = createWearableMessages(nodesMap, myNodeNum, wearableChannels)
+            sendPayload(PATH_MESSAGES, KEY_MESSAGES, json.encodeToString(wearableMessages), targetNodeIds)
+        }
+    }
+
+    private fun Node.toWearableNode() = WearableNode(
+        num = num,
+        name = user.long_name,
+        shortName = user.short_name,
+        online = isOnline,
+        battery = batteryLevel,
+        snr = snr.takeIf { it != Float.MAX_VALUE },
+        lastSeen = lastHeard.toLong() * MILLIS_PER_SECOND,
+        favorite = isFavorite,
+    )
+
+    private suspend fun createWearableChannels(): List<WearableChannel> {
+        val channelSet = radioConfigRepository.channelSetFlow.first()
+        val loraConfig = channelSet.lora_config ?: LoRaConfig()
+        return channelSet.settings.mapIndexed { index, settings ->
+            WearableChannel(
+                index = index,
+                name = MeshChannel(settings, loraConfig).name,
+                contactKey = ContactKey.broadcast(index).value,
+            )
+        }
+    }
+
+    private suspend fun createWearableMessages(
+        nodesMap: Map<Int, Node>,
+        myNodeNum: Int?,
+        wearableChannels: List<WearableChannel>,
+    ): List<WearableMessage> {
+        val contacts = packetRepository.getContacts().first()
+        val messages = mutableListOf<WearableMessage>()
+
+        nodesMap.values
+            .filter { it.num != myNodeNum }
+            .forEach { node ->
+                val contactKey = NodeAddress.numToDefaultId(node.num)
+                messages +=
+                    WearableMessage(
+                        uuid = node.num.toLong(),
+                        contactKey = contactKey,
+                        senderName = node.user.long_name,
+                        senderShortName = node.user.short_name,
+                        text = NO_MESSAGES_PLACEHOLDER,
+                        isMe = false,
+                        timestamp = 0L,
+                        address = contactKey,
+                        status = MessageStatus.RECEIVED,
+                    )
+            }
+
+        contacts.keys.take(MAX_CONTACTS).forEach { contactKeyValue ->
+            val contactKey = ContactKey(contactKeyValue)
+            val address = contactKey.addressString
+            val isBroadcast = contactKey.address is NodeAddress.Broadcast
+            val nodeNum = NodeAddress.idToNum(address)
+            if (!isBroadcast && nodeNum == myNodeNum) return@forEach
+
+            val threadInfo =
+                if (isBroadcast) {
+                    val name = wearableChannels.getOrNull(contactKey.channel)?.name ?: "Channel ${contactKey.channel}"
+                    name to name.take(2).uppercase()
+                } else {
+                    val contactNode = nodeNum?.let(nodesMap::get)
+                    (contactNode?.user?.long_name ?: address) to (contactNode?.user?.short_name ?: UNKNOWN_SHORT_NAME)
+                }
+
+            packetRepository
+                .getMessagesFrom(
+                    contact = contactKeyValue,
+                    limit = MAX_MESSAGES_PER_CONTACT,
+                    getNode = { id ->
+                        NodeAddress.idToNum(id)?.let(nodesMap::get) ?: nodeRepository.getNode(id.orEmpty())
+                    },
+                )
+                .first()
+                .forEach { message ->
+                    messages +=
+                        WearableMessage(
+                            uuid = message.uuid,
+                            contactKey = contactKeyValue,
+                            senderName = threadInfo.first,
+                            senderShortName = threadInfo.second,
+                            text = message.text,
+                            isMe = message.fromLocal,
+                            timestamp = message.receivedTime,
+                            address = address.takeUnless { isBroadcast },
+                            channelIndex = contactKey.channel,
+                            status = message.status ?: MessageStatus.RECEIVED,
+                        )
+                }
+        }
+
+        return messages.sortedByDescending { it.timestamp }.distinctBy { it.contactKey }
+    }
+
+    private suspend fun sendPayload(path: String, dataKey: String, payload: String, targetNodeIds: List<String>) {
+        val dataRequest =
+            PutDataMapRequest.create(path)
+                .apply {
+                    dataMap.putString(dataKey, payload)
+                    dataMap.putLong(KEY_TIMESTAMP, nowMillis)
+                }
+                .asPutDataRequest()
+                .setUrgent()
+
+        safeCatching { dataClient.putDataItem(dataRequest).await() }
+            .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
+
+        val bytes = payload.encodeToByteArray()
+        targetNodeIds.forEach {
+            safeCatching { messageClient.sendMessage(it, path, bytes).await() }
+                .onFailure { failure -> failureLogger.log(WearableFailureLog.MessageSynchronization, failure) }
+        }
     }
 
     companion object {
         private const val PATH_NODES = "/nodes"
         private const val PATH_MESSAGES = "/messages"
         private const val PATH_CHANNELS = "/channels"
-    }
-
-    private fun syncNodes(nodes: List<WearableNode>, targetNodeId: String? = null) {
-        Logger.d { "Syncing ${nodes.size} nodes to wearable" }
-        val nodesJson = json.encodeToString(nodes)
-
-        // Use Data Layer for same-package sync
-        val putDataMapReq =
-            PutDataMapRequest.create(PATH_NODES).apply {
-                dataMap.putString("nodes_json", nodesJson)
-                dataMap.putLong("timestamp", System.currentTimeMillis())
-            }
-        val putDataReq = putDataMapReq.asPutDataRequest().setUrgent()
-        dataClient
-            .putDataItem(putDataReq)
-            .addOnSuccessListener { Logger.d { "Nodes sync (Data Layer) success" } }
-            .addOnFailureListener { e -> Logger.e(e) { "Nodes sync (Data Layer) failed" } }
-
-        // Fallback: Use Message API for different-package sync
-        scope.launch {
-            try {
-                val targetNodes = targetNodeId?.let { listOf(it) } ?: nodeClient.connectedNodes.await().map { it.id }
-
-                targetNodes.forEach { id -> messageClient.sendMessage(id, PATH_NODES, nodesJson.toByteArray()).await() }
-                Logger.d { "Nodes sync (Message API) success for ${targetNodes.size} nodes" }
-            } catch (e: Exception) {
-                Logger.e(e) { "Nodes sync (Message API) failed" }
-            }
-        }
-    }
-
-    private fun syncMessages(messages: List<WearableMessage>, targetNodeId: String? = null) {
-        Logger.d { "Syncing ${messages.size} messages to wearable" }
-        val messagesJson = json.encodeToString(messages)
-
-        // Use Data Layer for same-package sync
-        val putDataMapReq =
-            PutDataMapRequest.create(PATH_MESSAGES).apply {
-                dataMap.putString("messages_json", messagesJson)
-                dataMap.putLong("timestamp", System.currentTimeMillis())
-            }
-        val putDataReq = putDataMapReq.asPutDataRequest().setUrgent()
-        dataClient
-            .putDataItem(putDataReq)
-            .addOnSuccessListener { Logger.d { "Messages sync (Data Layer) success" } }
-            .addOnFailureListener { e -> Logger.e(e) { "Messages sync (Data Layer) failed" } }
-
-        // Fallback: Use Message API for different-package sync
-        scope.launch {
-            try {
-                val targetNodes = targetNodeId?.let { listOf(it) } ?: nodeClient.connectedNodes.await().map { it.id }
-
-                targetNodes.forEach { id ->
-                    messageClient.sendMessage(id, PATH_MESSAGES, messagesJson.toByteArray()).await()
-                }
-                Logger.d { "Messages sync (Message API) success for ${targetNodes.size} nodes" }
-            } catch (e: Exception) {
-                Logger.e(e) { "Messages sync (Message API) failed" }
-            }
-        }
-    }
-
-    private fun syncChannels(channels: List<WearableChannel>, targetNodeId: String? = null) {
-        Logger.d { "Syncing ${channels.size} channels to wearable" }
-        val channelsJson = json.encodeToString(channels)
-
-        val putDataMapReq =
-            PutDataMapRequest.create(PATH_CHANNELS).apply {
-                dataMap.putString("channels_json", channelsJson)
-                dataMap.putLong("timestamp", System.currentTimeMillis())
-            }
-        val putDataReq = putDataMapReq.asPutDataRequest().setUrgent()
-        dataClient.putDataItem(putDataReq)
-
-        scope.launch {
-            try {
-                val targetNodes = targetNodeId?.let { listOf(it) } ?: nodeClient.connectedNodes.await().map { it.id }
-
-                targetNodes.forEach { id ->
-                    messageClient.sendMessage(id, PATH_CHANNELS, channelsJson.toByteArray()).await()
-                }
-            } catch (e: Exception) {
-                Logger.e(e) { "Channels sync failed" }
-            }
-        }
+        private const val KEY_NODES = "nodes_json"
+        private const val KEY_MESSAGES = "messages_json"
+        private const val KEY_CHANNELS = "channels_json"
+        private const val KEY_TIMESTAMP = "timestamp"
+        private const val MAX_CONTACTS = 20
+        private const val MAX_MESSAGES_PER_CONTACT = 10
+        private const val MILLIS_PER_SECOND = 1_000L
+        private const val NO_MESSAGES_PLACEHOLDER = "No messages yet"
+        private const val UNKNOWN_SHORT_NAME = "??"
+        private val REPOSITORY_SYNC_DEBOUNCE = 750.milliseconds
     }
 }
