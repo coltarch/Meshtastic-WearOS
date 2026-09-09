@@ -87,7 +87,7 @@ ktor = "3.5.2"
 aboutlibraries = "15.2.0"
 jserialcomm = "2.11.4"
 coil = "3.6.2"
-datadog-gradle = "1.30.0"
+datadog-gradle = "1.31.0"
 dd-sdk-android = "3.13.1"
 detekt = "2.0.0-alpha.6"
 dokka = "2.2.0"
@@ -105,11 +105,11 @@ mqttastic = "0.8.1"
 jmdns = "3.6.3"
 qrcode-kotlin = "4.5.0"
 takpacket-sdk = "0.9.1"
-meshtastic-protobufs = "2.8.0.18-gf008c45-SNAPSHOT"
+meshtastic-protobufs = "2.8.0.29-ga9e83e9-SNAPSHOT"
 
 # Gradle Plugins
 ccud = "2.8.0"
-develocity = "4.5.0"
+develocity = "4.5.1"
 foojay-resolver = "1.0.0"
 
 
@@ -205,7 +205,7 @@ jetbrains-compose-material3-adaptive-navigation-suite = { module = "org.jetbrain
 firebase-ai = { module = "com.google.firebase:firebase-ai" }
 firebase-ai-ondevice = { module = "com.google.firebase:firebase-ai-ondevice", version = "16.0.0-beta05" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
-firebase-bom = { module = "com.google.firebase:firebase-bom", version = "34.18.0" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version = "34.19.0" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 location-services = { module = "com.google.android.gms:play-services-location", version = "21.4.0" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
@@ -318,7 +318,7 @@ jserialcomm = { module = "com.fazecast:jSerialComm", version.ref = "jserialcomm"
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 uri-kmp = { module = "com.eygraber:uri-kmp", version.ref = "uri-kmp" }
-kermit = { module = "co.touchlab:kermit", version = "2.1.0" }
+kermit = { module = "co.touchlab:kermit", version = "2.2.0" }
 # Debug-only leak/GC-thrash detector -- see feature/settings/.../debugging/DebugViewModel.kt and
 # core/data/.../manager/MeshMessageProcessorImpl.kt for the adversarial-mesh-fuzz bugs this class of
 # tooling is meant to catch going forward. Stable release (not the 3.0-alpha line).
