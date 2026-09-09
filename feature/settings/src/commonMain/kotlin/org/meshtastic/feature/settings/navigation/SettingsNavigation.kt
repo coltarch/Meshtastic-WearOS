@@ -47,6 +47,8 @@ import org.meshtastic.feature.settings.DeviceLinkDirectoryScreen
 import org.meshtastic.feature.settings.ModuleConfigurationScreen
 import org.meshtastic.feature.settings.NodeListScreen
 import org.meshtastic.feature.settings.SettingsViewModel
+import org.meshtastic.feature.settings.WatchConfigurationScreen
+import org.meshtastic.feature.settings.WatchViewModel
 import org.meshtastic.feature.settings.appfunctions.AppFunctionsSettingsScreen
 import org.meshtastic.feature.settings.appfunctions.AppFunctionsSettingsViewModel
 import org.meshtastic.feature.settings.debugging.DebugScreen
@@ -260,6 +262,8 @@ private fun NavBackStack<NavKey>.addSettingsRoute(route: Route) {
 fun EntryProviderScope<NavKey>.settingsGraph(
     backStack: NavBackStack<NavKey>,
     radioConfigViewModelProvider: @Composable (SettingsRoute.Settings?) -> RadioConfigViewModel,
+    includeWatchSettings: Boolean = true,
+    watchViewModelProvider: @Composable () -> WatchViewModel = { koinViewModel() },
 ) {
     entry<SettingsRoute.Settings> { args ->
         val isTabRoot = backStack.firstOrNull() == args
@@ -301,6 +305,15 @@ fun EntryProviderScope<NavKey>.settingsGraph(
     entry<SettingsRoute.CleanNodeDb> {
         val viewModel: CleanNodeDatabaseViewModel = koinViewModel()
         CleanNodeDatabaseScreen(viewModel = viewModel, onBack = dropUnlessResumed { backStack.removeLastOrNull() })
+    }
+
+    if (includeWatchSettings) {
+        entry<SettingsRoute.Watch> {
+            WatchConfigurationScreen(
+                viewModel = watchViewModelProvider(),
+                onBack = dropUnlessResumed { backStack.removeLastOrNull() },
+            )
+        }
     }
 
     // The local node's context-menu shortcut: the same user screen and the same read fan-out, opened on its field.

@@ -20,7 +20,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
@@ -31,7 +34,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.meshtastic.core.navigation.MapRoute
 import org.meshtastic.core.navigation.NodesRoute
+import org.meshtastic.core.navigation.SettingsRoute
+import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.getString
+import org.meshtastic.core.resources.watch_settings_title
+import org.meshtastic.core.testing.FakeWatchPrefs
 import org.meshtastic.core.ui.component.MeshtasticNavDisplay
+import org.meshtastic.core.ui.theme.AppTheme
 import org.meshtastic.core.ui.util.LocalMapMainScreenProvider
 import org.meshtastic.feature.connections.navigation.connectionsGraph
 import org.meshtastic.feature.discovery.navigation.discoveryGraph
@@ -39,6 +48,7 @@ import org.meshtastic.feature.firmware.navigation.firmwareGraph
 import org.meshtastic.feature.map.navigation.mapGraph
 import org.meshtastic.feature.messaging.navigation.contactsGraph
 import org.meshtastic.feature.node.navigation.nodesGraph
+import org.meshtastic.feature.settings.WatchViewModel
 import org.meshtastic.feature.settings.navigation.settingsGraph
 import org.meshtastic.feature.settings.radio.channel.channelsGraph
 import org.robolectric.RobolectricTestRunner
@@ -65,10 +75,40 @@ class NavigationAssemblyTest {
                 channelsGraph(backStack)
                 connectionsGraph(backStack)
                 discoveryGraph(backStack)
-                settingsGraph(backStack) { _ -> error("Settings ViewModel is not composed in this assembly test") }
+                settingsGraph(
+                    backStack = backStack,
+                    radioConfigViewModelProvider = {
+                        error("Settings ViewModel is not composed in this assembly test")
+                    },
+                )
                 firmwareGraph(backStack)
             }
         }
+    }
+
+    @Test
+    fun watchRouteResolvesToWatchConfigurationScreen() = runComposeUiTest {
+        setContent {
+            AppTheme {
+                val backStack = rememberNavBackStack(SettingsRoute.Watch)
+                val viewModel = remember { WatchViewModel(FakeWatchPrefs()) }
+                MeshtasticNavDisplay(
+                    backStack = backStack,
+                    entryProvider =
+                    entryProvider {
+                        settingsGraph(
+                            backStack = backStack,
+                            radioConfigViewModelProvider = {
+                                error("Radio settings ViewModel is not composed for the Watch route")
+                            },
+                            watchViewModelProvider = { viewModel },
+                        )
+                    },
+                )
+            }
+        }
+
+        onNodeWithText(getString(Res.string.watch_settings_title)).assertIsDisplayed()
     }
 
     @Test

@@ -84,6 +84,7 @@ class NavigationConfigTest {
             SettingsRoute.LoRa,
             SettingsRoute.Bluetooth,
             SettingsRoute.Security,
+            SettingsRoute.Watch,
             SettingsRoute.MQTT,
             SettingsRoute.Serial,
             SettingsRoute.ExtNotification,
