@@ -37,16 +37,16 @@ import org.meshtastic.core.resources.allow_input_source
 import org.meshtastic.core.resources.canned_message
 import org.meshtastic.core.resources.canned_message_config
 import org.meshtastic.core.resources.canned_message_enabled
-import org.meshtastic.core.resources.generate_input_event_on_ccw
-import org.meshtastic.core.resources.generate_input_event_on_cw
-import org.meshtastic.core.resources.generate_input_event_on_press
-import org.meshtastic.core.resources.gpio_pin_for_rotary_encoder_a_port
-import org.meshtastic.core.resources.gpio_pin_for_rotary_encoder_b_port
-import org.meshtastic.core.resources.gpio_pin_for_rotary_encoder_press_port
 import org.meshtastic.core.resources.messages
-import org.meshtastic.core.resources.rotary_encoder_1_enabled
-import org.meshtastic.core.resources.send_bell
-import org.meshtastic.core.resources.up_down_select_input_enabled
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_event_ccw
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_event_cw
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_event_press
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_pin_a
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_pin_b
+import org.meshtastic.core.resources.schema_cannedmessage_inputbroker_pin_press
+import org.meshtastic.core.resources.schema_cannedmessage_rotary1_enabled
+import org.meshtastic.core.resources.schema_cannedmessage_send_bell
+import org.meshtastic.core.resources.schema_cannedmessage_updown1_enabled
 import org.meshtastic.core.ui.component.DropDownPreference
 import org.meshtastic.core.ui.component.EditTextPreference
 import org.meshtastic.core.ui.component.SwitchPreference
@@ -55,6 +55,7 @@ import org.meshtastic.feature.settings.radio.RadioConfigViewModel
 import org.meshtastic.feature.settings.radio.RebootBehavior
 import org.meshtastic.proto.ModuleConfig
 import org.meshtastic.proto.allow_input_source
+import org.meshtastic.proto.enabled
 
 @Suppress("DEPRECATION", "LongMethod")
 @Composable
@@ -90,18 +91,20 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
     ) {
         item {
             TitledCard(title = stringResource(Res.string.canned_message_config)) {
+                if (capabilities.offers(ModuleConfig.CannedMessageConfig.enabled, isSet = formState.value.enabled)) {
+                    SwitchPreference(
+                        title = stringResource(Res.string.canned_message_enabled),
+                        checked = formState.value.enabled,
+                        enabled = state.connected,
+                        onCheckedChange = {
+                            formState.value = formState.value.newBuilder().also { wb -> wb.enabled = it }.build()
+                        },
+                        containerColor = CardDefaults.cardColors().containerColor,
+                    )
+                    HorizontalDivider()
+                }
                 SwitchPreference(
-                    title = stringResource(Res.string.canned_message_enabled),
-                    checked = formState.value.enabled,
-                    enabled = state.connected,
-                    onCheckedChange = {
-                        formState.value = formState.value.newBuilder().also { wb -> wb.enabled = it }.build()
-                    },
-                    containerColor = CardDefaults.cardColors().containerColor,
-                )
-                HorizontalDivider()
-                SwitchPreference(
-                    title = stringResource(Res.string.rotary_encoder_1_enabled),
+                    title = stringResource(Res.string.schema_cannedmessage_rotary1_enabled),
                     checked = formState.value.rotary1_enabled,
                     enabled = state.connected,
                     onCheckedChange = {
@@ -111,7 +114,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                 )
                 HorizontalDivider()
                 EditTextPreference(
-                    title = stringResource(Res.string.gpio_pin_for_rotary_encoder_a_port),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_pin_a),
                     value = formState.value.inputbroker_pin_a,
                     enabled = state.connected,
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -120,7 +123,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                     },
                 )
                 EditTextPreference(
-                    title = stringResource(Res.string.gpio_pin_for_rotary_encoder_b_port),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_pin_b),
                     value = formState.value.inputbroker_pin_b,
                     enabled = state.connected,
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -129,7 +132,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                     },
                 )
                 EditTextPreference(
-                    title = stringResource(Res.string.gpio_pin_for_rotary_encoder_press_port),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_pin_press),
                     value = formState.value.inputbroker_pin_press,
                     enabled = state.connected,
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -139,7 +142,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                     },
                 )
                 DropDownPreference(
-                    title = stringResource(Res.string.generate_input_event_on_press),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_event_press),
                     enabled = state.connected,
                     items = ModuleConfig.CannedMessageConfig.InputEventChar.entries.map { it to it.name },
                     selectedItem = formState.value.inputbroker_event_press,
@@ -150,7 +153,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                 )
                 HorizontalDivider()
                 DropDownPreference(
-                    title = stringResource(Res.string.generate_input_event_on_cw),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_event_cw),
                     enabled = state.connected,
                     items = ModuleConfig.CannedMessageConfig.InputEventChar.entries.map { it to it.name },
                     selectedItem = formState.value.inputbroker_event_cw,
@@ -161,7 +164,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                 )
                 HorizontalDivider()
                 DropDownPreference(
-                    title = stringResource(Res.string.generate_input_event_on_ccw),
+                    title = stringResource(Res.string.schema_cannedmessage_inputbroker_event_ccw),
                     enabled = state.connected,
                     items = ModuleConfig.CannedMessageConfig.InputEventChar.entries.map { it to it.name },
                     selectedItem = formState.value.inputbroker_event_ccw,
@@ -172,7 +175,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                 )
                 HorizontalDivider()
                 SwitchPreference(
-                    title = stringResource(Res.string.up_down_select_input_enabled),
+                    title = stringResource(Res.string.schema_cannedmessage_updown1_enabled),
                     checked = formState.value.updown1_enabled,
                     enabled = state.connected,
                     onCheckedChange = {
@@ -203,7 +206,7 @@ fun CannedMessageConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Uni
                     )
                 }
                 SwitchPreference(
-                    title = stringResource(Res.string.send_bell),
+                    title = stringResource(Res.string.schema_cannedmessage_send_bell),
                     checked = formState.value.send_bell,
                     enabled = state.connected,
                     onCheckedChange = {
