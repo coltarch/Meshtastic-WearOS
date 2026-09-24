@@ -4,11 +4,11 @@ xmlutil = "1.0.2.1"
 # Android
 agp = "9.4.1"
 appcompat = "1.8.0"
-appfunctions = "1.0.0-alpha11"
+appfunctions = "1.0.0-alpha12"
 
 # androidx
 androidx-sqlite-bundled = "2.7.1"
-androidx-work = "2.11.2"
+androidx-work = "2.12.0"
 datastore = "1.2.1"
 glance = "1.2.0"
 lifecycle = "2.11.0"
@@ -123,7 +123,7 @@ xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", v
 
 # AndroidX
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version = "1.13.0" }
-androidx-annotation = { module = "androidx.annotation:annotation", version = "1.10.0" }
+androidx-annotation = { module = "androidx.annotation:annotation", version = "1.11.0" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-appfunctions = { module = "androidx.appfunctions:appfunctions", version.ref = "appfunctions" }
 androidx-appfunctions-compiler = { module = "androidx.appfunctions:appfunctions-compiler", version.ref = "appfunctions" }
@@ -133,7 +133,7 @@ androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", versi
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 androidx-camera-compose = { module = "androidx.camera:camera-compose", version.ref = "camerax" }
 androidx-camera-viewfinder-compose = { module = "androidx.camera.viewfinder:viewfinder-compose", version = "1.6.2" }
-androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.19.0" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.19.1" }
 androidx-core-location-altitude = { module = "androidx.core:core-location-altitude", version = "1.0.0" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version = "1.2.0" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version = "1.1.0" }
