@@ -56,6 +56,7 @@ import org.meshtastic.core.repository.ServiceRepository
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.discovery_interrupted_scan_restored
 import org.meshtastic.core.resources.getStringSuspend
+import org.meshtastic.core.service.WearableSyncService
 import org.meshtastic.core.service.worker.MeshLogCleanupWorker
 import org.meshtastic.feature.discovery.DiscoveryScanEngine
 import org.meshtastic.feature.widget.LocalStatsWidgetReceiver
@@ -113,6 +114,10 @@ open class MeshUtilApplication :
      * un-terminated Application unsafe.
      */
     protected open fun startBackgroundInit() {
+        // Resolve and start the lazy singleton only after androidContext is available. WearableSyncService.start() is
+        // idempotent, so a listener-service wakeup racing app startup cannot create duplicate Flow collectors.
+        applicationScope.launch { get<WearableSyncService>().start() }
+
         // Schedule periodic MeshLog cleanup. Off-main: WorkManager uses on-demand init here
         // (the startup provider is removed), so getInstance() opens WorkManager's Room DB.
         applicationScope.launch { scheduleMeshLogCleanup() }
@@ -191,6 +196,7 @@ open class MeshUtilApplication :
 
     override fun onTerminate() {
         // cancel() not cancelAndJoin(): joining under runBlocking on the main thread can deadlock.
+        get<WearableSyncService>().stop()
         cancelBackgroundInit()
         try {
             runBlocking { get<DatabaseManager>().close() }

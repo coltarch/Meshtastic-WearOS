@@ -91,3 +91,9 @@ interface UiDataStore : DataStore<Preferences>
 
 /** Presents an existing store as [UiDataStore]; the wrapper adds nothing but identity. */
 fun DataStore<Preferences>.asUiDataStore(): UiDataStore = object : UiDataStore, DataStore<Preferences> by this {}
+
+interface WatchDataStore : DataStore<Preferences>
+
+/** Presents an existing store as [WatchDataStore]; the wrapper adds nothing but identity. */
+fun DataStore<Preferences>.asWatchDataStore(): WatchDataStore =
+    object : WatchDataStore, DataStore<Preferences> by this {}

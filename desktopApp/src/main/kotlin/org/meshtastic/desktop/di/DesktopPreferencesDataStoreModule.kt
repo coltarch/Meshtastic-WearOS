@@ -41,6 +41,7 @@ import org.meshtastic.core.prefs.di.MeshDataStore
 import org.meshtastic.core.prefs.di.MeshLogDataStore
 import org.meshtastic.core.prefs.di.RadioDataStore
 import org.meshtastic.core.prefs.di.UiDataStore
+import org.meshtastic.core.prefs.di.WatchDataStore
 import org.meshtastic.core.prefs.di.asAnalyticsDataStore
 import org.meshtastic.core.prefs.di.asAppDataStore
 import org.meshtastic.core.prefs.di.asCustomEmojiDataStore
@@ -53,6 +54,7 @@ import org.meshtastic.core.prefs.di.asMeshDataStore
 import org.meshtastic.core.prefs.di.asMeshLogDataStore
 import org.meshtastic.core.prefs.di.asRadioDataStore
 import org.meshtastic.core.prefs.di.asUiDataStore
+import org.meshtastic.core.prefs.di.asWatchDataStore
 
 /** Typed preference-datastore singletons for each preference domain, one file each under the data directory. */
 @Suppress("TooManyFunctions")
@@ -88,6 +90,8 @@ class DesktopPreferencesDataStoreModule {
     @Single fun radioDataStore(scope: DataStoreScope): RadioDataStore = prefsStore("radio", scope).asRadioDataStore()
 
     @Single fun uiDataStore(scope: DataStoreScope): UiDataStore = prefsStore("ui", scope).asUiDataStore()
+
+    @Single fun watchDataStore(scope: DataStoreScope): WatchDataStore = prefsStore("watch", scope).asWatchDataStore()
 
     @Single
     fun meshLogDataStore(scope: DataStoreScope): MeshLogDataStore = prefsStore("meshlog", scope).asMeshLogDataStore()

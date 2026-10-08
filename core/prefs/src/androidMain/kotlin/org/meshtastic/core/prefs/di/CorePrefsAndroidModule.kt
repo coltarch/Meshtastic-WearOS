@@ -92,7 +92,14 @@ class CorePrefsAndroidModule {
     @Single
     fun provideFilterDataStore(context: Context, dispatchers: CoroutineDispatchers): FilterDataStore =
         store(context, dispatchers, legacyName = "filter-prefs", fileName = "filter_ds").asFilterDataStore()
+
+    @Single
+    fun provideWatchDataStore(context: Context, dispatchers: CoroutineDispatchers): WatchDataStore =
+        createWatchDataStore(context, dispatchers)
 }
+
+internal fun createWatchDataStore(context: Context, dispatchers: CoroutineDispatchers): WatchDataStore =
+    store(context, dispatchers, legacyName = "watch-prefs", fileName = "watch_ds").asWatchDataStore()
 
 /**
  * [legacyName] is the SharedPreferences file this domain migrates from, [fileName] the DataStore file it lives in now.

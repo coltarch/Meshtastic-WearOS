@@ -246,6 +246,8 @@
     <string name="collapse_chart">Collapse chart</string>
     <string name="collapsed">Collapsed</string>
     <string name="communicate_off_the_grid">Communicate off-the-grid with your friends and community without cell service.</string>
+    <string name="companion_mode">Companion</string>
+    <string name="companion_mode_description">Uses your linked phone to synchronize Meshtastic data.</string>
     <!-- COMPASS -->
     <string name="compass_bearing">Bearing: %1$s</string>
     <string name="compass_bearing_na">Bearing: N/A</string>
@@ -583,6 +585,7 @@
     <string name="exchange_position">Exchange position</string>
     <string name="expand_chart">Expand chart</string>
     <string name="expanded">Expanded</string>
+    <string name="experimental_badge">Experimental</string>
     <string name="expires">Expires</string>
     <!-- EXPORT -->
     <string name="export_configuration">Export configuration</string>
@@ -592,6 +595,7 @@
     <string name="export_tak_data_package">Export TAK Data Package</string>
     <string name="external_notification">External Notification</string>
     <string name="external_notification_config">External Notification Config</string>
+    <string name="externally_powered">Externally powered</string>
     <string name="factory_reset">Factory reset</string>
     <string name="fair">Fair</string>
     <string name="fallback_node_name">Meshtastic %1$s</string>
@@ -840,6 +844,7 @@
     <string name="label_with_unit">%1$s (%2$s)</string>
     <string name="last_heard_filter_label">Filter by Last Heard time: %1$s</string>
     <string name="last_position_update">Last position update</string>
+    <string name="last_seen">Last seen</string>
     <string name="latest_alpha_firmware">Latest alpha</string>
     <string name="latest_stable_firmware">Latest stable</string>
     <string name="latitude">Latitude</string>
@@ -1195,6 +1200,7 @@
     <string name="nitrate">Nitrate</string>
     <string name="nitrogen">Nitrogen</string>
     <!-- NO -->
+    <string name="no">No</string>
     <string name="no_bluetooth_devices_hint">Ensure you're within range of the device.</string>
     <string name="no_bluetooth_devices_seen">No Bluetooth devices seen</string>
     <string name="no_custom_tile_sources_found">No custom tile sources found.</string>
@@ -1271,6 +1277,7 @@
     <string name="node_sort_title">Sort by</string>
     <string name="node_sort_via_favorite">via Favorite</string>
     <string name="node_sort_via_mqtt">via MQTT</string>
+    <string name="node_unavailable">Node unavailable</string>
     <string name="nodedb_reset">NodeDB reset</string>
     <!-- NODES -->
     <string name="nodes">Nodes</string>
@@ -1305,6 +1312,7 @@
     <string name="notifications_on_message_receipt">Notifications on message receipt</string>
     <string name="now">Now</string>
     <!-- OFFLINE -->
+    <string name="offline">Offline</string>
     <string name="offline_maps">Offline maps</string>
     <string name="offline_maps_empty">No areas downloaded yet</string>
     <string name="offline_terrain_cache_detail">%1$s: %2$s · %3$s</string>
@@ -1319,15 +1327,18 @@
     <string name="one_month">1M</string>
     <string name="one_week">1W</string>
     <string name="one_wire_temperature">1-Wire Temp</string>
+    <string name="online">Online</string>
     <string name="only_favorites">Only Favorites</string>
     <!-- OPEN -->
     <string name="open_bluetooth_settings">Open Bluetooth settings</string>
     <string name="open_compass">Open Compass</string>
     <string name="open_location_settings">Open location settings</string>
+    <string name="open_on_phone">Open on phone</string>
     <string name="open_settings">Open settings</string>
     <string name="open_source_description">Meshtastic is built with the following open source libraries. Tap any library to view its license.</string>
     <string name="open_source_libraries">Open Source Libraries</string>
     <string name="open_wifi_settings">Open Wi-Fi settings</string>
+    <string name="operating_mode">Operating mode</string>
     <string name="options">Options</string>
     <string name="orient_north">Orient north</string>
     <string name="orp">ORP</string>
@@ -1713,6 +1724,25 @@
     <string name="speed">Speed</string>
     <string name="speed_kmh">%1$d Km/h</string>
     <string name="speed_mph">%1$d mph</string>
+    <!-- STANDALONE -->
+    <string name="standalone_radio_battery_warning">Standalone radio mode uses more watch battery.</string>
+    <string name="standalone_radio_connected">Connected to %1$s</string>
+    <string name="standalone_radio_connecting">Connecting to %1$s…</string>
+    <string name="standalone_radio_connection">Radio connection</string>
+    <string name="standalone_radio_connection_failed">Could not connect to the radio.</string>
+    <string name="standalone_radio_experimental_description">Connect directly to a radio. This feature may be unstable and use more battery.</string>
+    <string name="standalone_radio_location_required">Location services must be enabled to scan for Bluetooth radios.</string>
+    <string name="standalone_radio_mode">Standalone radio</string>
+    <string name="standalone_radio_mode_description">Connect this watch directly to a Meshtastic radio over Bluetooth.</string>
+    <string name="standalone_radio_no_radio">No radio connected</string>
+    <string name="standalone_radio_permission_action">Grant permission</string>
+    <string name="standalone_radio_phone_sync_notice">Phone synchronization is unavailable while standalone radio mode is active.</string>
+    <string name="standalone_radio_scan">Scan for radios</string>
+    <string name="standalone_radio_scan_failed">Unable to scan for Bluetooth radios.</string>
+    <string name="standalone_radio_scanning">Scanning for radios…</string>
+    <string name="standalone_radio_stop_scan">Stop scan</string>
+    <string name="standalone_radio_unsupported">Standalone radio mode is not supported on this watch.</string>
+    <string name="state_broadcast_seconds">State broadcast (seconds)</string>
     <string name="status_message">Status Message</string>
     <string name="status_message_summary">A public status message that is broadcast to the mesh on change and every 12 hours.</string>
     <string name="stay_connected_anywhere">Stay Connected Anywhere</string>
@@ -1844,6 +1874,7 @@
     <string name="type">Type</string>
     <string name="type_a_message">Type a message</string>
     <string name="udp_enabled">UDP broadcasting</string>
+    <string name="unavailable">Unavailable</string>
     <string name="undo">Undo</string>
     <string name="unit_dbm">dBm</string>
     <string name="unit_khz">kHz</string>
@@ -1898,11 +1929,93 @@
     <string name="view_release">View Release</string>
     <string name="voltage">Voltage</string>
     <string name="warning">Warning</string>
+    <!-- WATCH -->
+    <string name="watch_connected_watch">Connected watch</string>
+    <string name="watch_connection_section">Connection</string>
+    <string name="watch_last_communication">Last communication</string>
+    <string name="watch_last_seen">%1$s · Last seen %2$s</string>
+    <string name="watch_message_retention_description">Choose the maximum number of recent messages copied across all conversations.</string>
+    <string name="watch_message_retention_label">Message retention</string>
+    <string name="watch_message_retention_option">%1$d messages</string>
+    <plurals name="watch_multiple_reachable">
+        <item quantity="one">%1$d reachable watch</item>
+        <item quantity="other">%1$d reachable watches</item>
+    </plurals>
+    <string name="watch_no_communication_yet">No communication yet</string>
+    <string name="watch_not_reachable">Not reachable</string>
+    <string name="watch_reachable">Reachable</string>
+    <string name="watch_searching_for_watch">Searching for your watch…</string>
+    <string name="watch_settings_title">Watch settings</string>
+    <string name="watch_status">Watch status</string>
+    <string name="watch_status_accessibility">Watch status: %1$s</string>
+    <string name="watch_status_checking">Checking connection</string>
+    <string name="watch_status_connected">Connected</string>
+    <string name="watch_status_disconnected">Disconnected</string>
+    <string name="watch_status_sync_failed">Sync failed</string>
+    <string name="watch_status_syncing">Syncing</string>
+    <string name="watch_sync_channels_description">Channel names needed for watch conversations.</string>
+    <string name="watch_sync_channels_label">Channels</string>
+    <string name="watch_sync_enabled_description">Allow this phone and your Wear OS watch to exchange Meshtastic data and commands.</string>
+    <string name="watch_sync_enabled_label">Watch connectivity</string>
+    <string name="watch_sync_interrupted">Sync was interrupted.</string>
+    <string name="watch_sync_messages_description">A limited number of recent messages for watch conversations.</string>
+    <string name="watch_sync_messages_label">Recent messages</string>
+    <string name="watch_sync_nodes_description">Names and basic details for nodes visible on the watch.</string>
+    <string name="watch_sync_nodes_label">Nodes</string>
+    <string name="watch_sync_not_connected">Watch is not connected.</string>
+    <string name="watch_sync_nothing_selected">Nothing selected to sync. Choose at least one category below.</string>
+    <string name="watch_sync_now_description">Request an immediate update using the selected categories.</string>
+    <string name="watch_sync_now_label">Sync now</string>
+    <string name="watch_sync_privacy_description">Only the categories you enable are shared with your connected Wear OS watch. Turning a category off clears that category on compatible watches and stops future updates.</string>
+    <string name="watch_sync_problem">Sync problem</string>
+    <string name="watch_sync_problem_connection">The phone could not check the watch connection.</string>
+    <string name="watch_sync_problem_transfer">Some data could not be sent to the watch.</string>
+    <string name="watch_sync_progress">%1$s — %2$d of %3$d steps complete</string>
+    <string name="watch_sync_progress_channels">Syncing channels</string>
+    <string name="watch_sync_progress_messages">Syncing messages</string>
+    <string name="watch_sync_progress_nodes">Syncing nodes</string>
+    <string name="watch_sync_progress_quick_replies">Syncing quick replies</string>
+    <string name="watch_sync_progress_radio_status">Syncing radio status</string>
+    <string name="watch_sync_quick_replies_description">Saved replies that can be sent from the watch.</string>
+    <string name="watch_sync_quick_replies_label">Quick replies</string>
+    <string name="watch_sync_radio_status_description">Connection, battery, and supported telemetry information.</string>
+    <string name="watch_sync_radio_status_label">Radio status and telemetry</string>
+    <string name="watch_sync_retry">Retry</string>
+    <string name="watch_sync_services_unavailable">Wear OS services are unavailable.</string>
+    <string name="watch_sync_state_description">%1$s: %2$s</string>
+    <string name="watch_sync_state_disabled">Disabled</string>
+    <string name="watch_sync_state_enabled">Enabled</string>
+    <string name="watch_sync_what_to_sync">What to sync</string>
+    <string name="watch_time_just_now">Just now</string>
     <string name="water_ph">Water pH</string>
     <string name="waypoint_delete">Delete waypoint?</string>
     <string name="waypoint_edit">Edit waypoint</string>
     <string name="waypoint_new">New waypoint</string>
     <string name="waypoint_received">Received waypoint: %1$s</string>
+    <!-- WEAR -->
+    <string name="wear_mode_change_confirm">Change mode</string>
+    <string name="wear_mode_change_continue">Continue</string>
+    <string name="wear_mode_change_restart">The new mode takes effect after the watch app restarts.</string>
+    <string name="wear_mode_restart_action">Restart app</string>
+    <string name="wear_mode_restart_required">Restart required to apply the mode change.</string>
+    <string name="wear_no_channels">No channels available</string>
+    <string name="wear_no_channels_description">Channels appear after the phone completes synchronization.</string>
+    <string name="wear_no_messages">No messages yet</string>
+    <string name="wear_no_nodes">No nodes available</string>
+    <string name="wear_no_nodes_description">Nodes appear after the connected radio receives them.</string>
+    <string name="wear_node_card_content_description">Open details for %1$s</string>
+    <string name="wear_phone_connection">Phone connection</string>
+    <string name="wear_phone_linked">Synchronized</string>
+    <string name="wear_phone_linked_description">Phone data is available on this watch.</string>
+    <string name="wear_phone_not_linked">Phone unavailable</string>
+    <string name="wear_phone_not_linked_description">The phone app must be running and reachable.</string>
+    <string name="wear_sync_failed">Sync failed</string>
+    <string name="wear_sync_failed_description">The last attempt did not complete. Previously synchronized data is still available.</string>
+    <string name="wear_sync_in_progress">Synchronizing…</string>
+    <string name="wear_sync_now">Sync now</string>
+    <string name="wear_sync_retrying">Retrying…</string>
+    <string name="wear_waiting_first_sync">Waiting for first sync</string>
+    <string name="wear_waiting_first_sync_description">Nodes, channels, and messages appear after synchronization.</string>
     <string name="website">Website</string>
     <string name="weight">Weight</string>
     <string name="what_is_meshtastic">What is Meshtastic?</string>
@@ -1960,6 +2073,7 @@
     <string name="write_nfc_subtext">Writing saves this link to an NFC tag anyone can tap.</string>
     <string name="write_nfc_success">Written to tag</string>
     <string name="write_nfc_text">Hold a writable NFC tag against the back of your phone.</string>
+    <string name="yes">Yes</string>
     <string name="you">You</string>
     <string name="zh_CN" translatable="false">简体中文</string>
     <string name="zh_TW" translatable="false">繁體中文</string>

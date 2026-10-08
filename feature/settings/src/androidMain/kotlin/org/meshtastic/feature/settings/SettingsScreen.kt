@@ -302,6 +302,7 @@ fun SettingsScreen(
                         onExportData = { settingsViewModel.saveDataCsv(it.toKmpUri()) },
                         onExportNodeDb = { settingsViewModel.saveNodeDbJson(it) },
                     )
+                    WatchSettingsEntry(onNavigate = onNavigate)
                     ListItem(
                         text = stringResource(Res.string.node_layout_section_title),
                         leadingIcon = MeshtasticIcons.List,

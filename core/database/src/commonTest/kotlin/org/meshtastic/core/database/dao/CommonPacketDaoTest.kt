@@ -564,6 +564,37 @@ abstract class CommonPacketDaoTest {
         assertEquals(packetIds.toSet(), fetched.map { it.packet.packetId }.toSet())
     }
 
+    @Test
+    fun `recent message query applies global retention limits before loading`() = runTest {
+        createDb()
+        val baseTime = nowMillis + 10_000
+        repeat(120) { index ->
+            packetDao.insert(
+                Packet(
+                    uuid = 0L,
+                    myNodeNum = myNodeNum,
+                    port_num = PortNum.TEXT_MESSAGE_APP.value,
+                    contact_key = testContactKeys[index % testContactKeys.size],
+                    received_time = baseTime + index,
+                    read = true,
+                    data =
+                    DataPacket(
+                        to = NodeAddress.ID_BROADCAST,
+                        bytes = "Recent $index".encodeToByteArray().toByteString(),
+                        dataType = PortNum.TEXT_MESSAGE_APP.value,
+                    ),
+                ),
+            )
+        }
+
+        listOf(25, 50, 100).forEach { limit ->
+            val messages = packetDao.getRecentMessages(limit).first()
+
+            assertEquals(limit, messages.size)
+            assertEquals(messages.sortedByDescending { it.packet.received_time }, messages)
+        }
+    }
+
     companion object {
         private const val SAMPLE_SIZE = 10
 

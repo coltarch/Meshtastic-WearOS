@@ -49,8 +49,10 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.work.runtime.ktx)
             implementation(libs.androidx.security.crypto)
+            implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.workmanager)
+            implementation(libs.play.services.wearable)
         }
 
         getByName("androidHostTest") {

@@ -78,5 +78,9 @@ class KoinConventionPlugin : Plugin<Project> {
     }
 }
 
-/** Modules declaring a `@KoinApplication`. A new app target must be added here or it is never validated. */
+/**
+ * Applications whose complete graph is known at compile time. Wear loads exactly one mutually exclusive mode module
+ * after reading persisted preferences, which the whole-graph compiler check cannot represent; its mode graphs are
+ * covered by `KoinVerificationTest` instead.
+ */
 private val KOIN_ENTRY_POINTS = setOf(":androidApp", ":desktopApp")

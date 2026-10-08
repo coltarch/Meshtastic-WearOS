@@ -121,6 +121,7 @@ include(
     ":feature:wifi-provision",
     ":desktopApp",
     ":androidApp",
+    ":wear",
     ":core:barcode",
     ":feature:widget",
     ":screenshot-tests",

@@ -1,0 +1,84 @@
+/*
+ * Copyright (c) 2026 Meshtastic LLC
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+@file:Suppress("TooGenericExceptionCaught")
+
+package org.meshtastic.wear.presentation
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.meshtastic.core.model.WearableChannel
+import org.meshtastic.core.model.WearableMessage
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.data.WearDataLayerClient
+import org.meshtastic.wear.data.WearDataLayerPaths
+import org.meshtastic.wear.presentation.model.WearableChannelRepository
+import org.meshtastic.wear.presentation.model.WearableMessageRepository
+import org.meshtastic.wear.presentation.model.WearableQuickReplyRepository
+
+class ChatViewModel(
+    repository: WearableMessageRepository,
+    channelRepository: WearableChannelRepository,
+    quickReplyRepository: WearableQuickReplyRepository,
+    private val dataLayerClient: WearDataLayerClient,
+) : ViewModel() {
+    private val json = Json
+    private val replyFactory = WearableReplyFactory(repository)
+
+    val messages: StateFlow<List<WearableMessage>> = repository.syncedMessages
+    val channels: StateFlow<List<WearableChannel>> = channelRepository.syncedChannels
+    val quickReplies: StateFlow<List<String>?> = quickReplyRepository.replies
+    val syncState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
+
+    fun retrySync() {
+        viewModelScope.launch { dataLayerClient.synchronize() }
+    }
+
+    fun sendMessage(contactKey: String, text: String) {
+        val reply = replyFactory.create(contactKey = contactKey, text = text)
+        viewModelScope.launch {
+            try {
+                val replyJson = json.encodeToString(reply)
+
+                if (dataLayerClient.sendCommand(WearDataLayerPaths.SEND_MESSAGE, replyJson.encodeToByteArray())) {
+                    Logger.d { "Wear reply sent through the phone" }
+                } else {
+                    Logger.w { "Wear reply could not be sent through the phone" }
+                }
+            } catch (_: Exception) {
+                Logger.w { "Wear reply could not be sent through the phone" }
+            }
+        }
+    }
+
+    fun openOnPhone(contactKey: String) {
+        viewModelScope.launch {
+            try {
+                dataLayerClient.sendCommand(
+                    WearDataLayerPaths.OPEN_CONVERSATION_ON_PHONE,
+                    contactKey.encodeToByteArray(),
+                )
+            } catch (_: Exception) {
+                Logger.w { "Conversation could not be opened on the phone" }
+            }
+        }
+    }
+}

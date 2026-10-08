@@ -127,6 +127,8 @@ sealed interface SettingsRoute : Route {
 
     @Serializable data object Security : SettingsRoute
 
+    @Serializable data object Watch : SettingsRoute
+
     // endregion
 
     // region module config routes

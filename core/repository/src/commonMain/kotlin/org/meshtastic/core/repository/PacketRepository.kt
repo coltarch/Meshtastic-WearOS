@@ -141,6 +141,13 @@ interface PacketRepository {
         getNode: suspend (String?) -> Node,
     ): Flow<List<Message>>
 
+    /**
+     * Returns at most [limit] newest unfiltered messages across all conversations.
+     *
+     * The limit is applied by the database query so callers never load the full message history.
+     */
+    suspend fun getRecentMessages(limit: Int, getNode: suspend (String?) -> Node): Flow<List<Pair<String, Message>>>
+
     /** Returns a paged flow of messages for a conversation. */
     fun getMessagesFromPaged(contact: String, getNode: suspend (String?) -> Node): Flow<PagingData<Message>>
 
