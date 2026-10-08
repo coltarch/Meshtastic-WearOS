@@ -88,6 +88,28 @@ class SettingsSearchCatalogTest {
     }
 
     @Test
+    fun noKeywordListIsOfferedAsASetting() {
+        val leaked = SettingsSearchCatalog.entries().mapNotNull { keyOf(it.title) }.filter { it.endsWith("_keywords") }
+
+        assertEquals(emptyList(), leaked.sorted(), "a field's search terms are matched, never a result of their own")
+    }
+
+    @Test
+    fun theHopLimitCarriesTheSchemasSearchTerms() {
+        val hopLimit = SettingsSearchCatalog.entries().single { keyOf(it.title) == "schema_lora_hop_limit" }
+
+        assertEquals("schema_lora_hop_limit_keywords", hopLimit.keywords?.let(::keyOf))
+    }
+
+    @Test
+    fun everyEntryHasADistinctId() {
+        val duplicates =
+            SettingsSearchCatalog.entries().groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys.sorted()
+
+        assertEquals(emptyList(), duplicates, "the results list keys on the id, and a duplicate key crashes it")
+    }
+
+    @Test
     fun everyConfigurationScreenIsReachableFromSearch() {
         val routes = SettingsSearchCatalog.entries().map { it.route }.toSet()
         val missing = (ConfigRoute.entries.map { it.route } + ModuleRoute.entries.map { it.route }) - routes

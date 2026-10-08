@@ -18,9 +18,9 @@ docs/
 │   ├── index.md                              ← Site home page
 │   ├── user.md                               ← User Guide nav parent
 │   └── developer.md                          ← Developer Guide nav parent
-├── fr-rFR/                                   ← French (Crowdin-generated)
+├── fr/                                       ← French (Crowdin-generated)
 │   └── user/                                 ← Translated user guide
-├── de-rDE/                                   ← German (Crowdin-generated)
+├── de/                                       ← German (Crowdin-generated)
 │   └── user/
 └── ...                                       ← Other locales
 ```
@@ -45,7 +45,8 @@ docs/
 
 1. English source files (`docs/en/user/*.md`) are uploaded to Crowdin as translation sources
 2. Volunteers translate via the Crowdin web UI
-3. Crowdin PRs land translated files at `docs/{android_code}/user/*.md` (e.g., `fr-rFR`, `pt-rBR`)
+3. Crowdin PRs land translated files at `docs/{locale}/user/*.md`, named like the app's `values-*` directories
+   (`fr`, `pt-rBR`, `b+sr+Latn`)
 4. At build time, the Gradle `syncTranslatedDocsToComposeResources` task bundles them into
    locale-qualified Compose Resources for the in-app reader
 5. The in-app `DocBundleLoader` tries the user's locale first, then falls back to English
@@ -57,33 +58,39 @@ channels (GitHub Pages must be configured to serve from that branch):
 
 | Path | Content | Published by |
 |------|---------|--------------|
-| `/` | Latest production release (default landing) | `docs-release.yml` on `vX.Y.Z` tags |
-| `/vX.Y.Z/` | Permanent per-release copy | `docs-release.yml` on `vX.Y.Z` tags |
-| `/vX.Y.Z-open.N/` | Per-tag open-testing snapshot | `docs-release.yml` on `vX.Y.Z-open.N` tags |
-| `/vX.Y.Z-closed.N/` | Per-tag closed-testing snapshot | `docs-release.yml` on `vX.Y.Z-closed.N` tags |
-| `/main/` | Snapshot of the `main` branch | `docs-deploy.yml` on pushes to `main` |
-| `/api/` | Dokka API reference | `docs-deploy.yml`, plus production releases |
+| `/` | Latest production release (default landing) | `docs-release.yml` on `vX.Y.Z` tags, dispatched by `promote.yml` |
+| `/vX.Y.Z/` | Copy of the current and the previous production release | `docs-release.yml` on `vX.Y.Z` tags, dispatched by `promote.yml` |
+| `/vX.Y.Z-open.N/` | Per-tag open-testing snapshot | `docs-release.yml` on `vX.Y.Z-open.N` tags, dispatched by `promote.yml` |
+| `/vX.Y.Z-closed.N/` | Per-tag closed-testing snapshot | `docs-release.yml` on `vX.Y.Z-closed.N` tags, dispatched by `promote.yml` |
+| `/main/` | Snapshot of the `main` branch | `docs-deploy.yml` on pushes to `main` that touch the site |
+| `/api/` | Dokka API reference | `docs-deploy.yml` daily, plus production releases |
 | `/versions.json` | Version manifest for the site's version switcher | regenerated on every deploy |
+
+`promote.yml` dispatches `docs-release.yml` after every open, closed and
+production promotion, because the tag it creates with `GITHUB_TOKEN` starts no
+workflow. The tag trigger of `docs-release.yml` covers a tag pushed by hand.
 
 `-internal.N` tags are deliberately not published — they are cut many times per
 cycle and are not a documented channel.
 
 Prerelease snapshots accumulate during a version cycle so testers can read the
 docs for the exact build they are running. Once the production `vX.Y.Z` tag
-ships, `/vX.Y.Z/` supersedes them and **Post-Release Cleanup** (run with
-`base_version=X.Y.Z`) reaps the `vX.Y.Z-open.*` / `vX.Y.Z-closed.*` directories
-along with the prerelease tags. That workflow defaults to a dry run.
+ships, `/vX.Y.Z/` supersedes them, and once it is published Docs Release
+dispatches **Post-Release Cleanup**, which reaps every open and closed directory
+and prerelease tag at or below `X.Y.Z`. It also keeps two production copies,
+`/vX.Y.Z/` and the newest one below it, and removes every older one. Copies above
+`X.Y.Z` are left alone, so a backfill never removes newer docs. A manual dispatch
+defaults to a dry run.
 
 Only production releases own `/` and rebuild `/api/`. Prerelease tags publish
-their own directory only: `/api/` is unversioned and already refreshed by every
-push to `main`, so rebuilding Dokka (~14 min) per prerelease tag would cost far
-more than it refreshes. Until a production release exists, `/` redirects to the
+their own directory only, since `/api/` is unversioned and `docs-deploy.yml`
+rebuilds it from `main` every day. Until a production release exists, `/` redirects to the
 best available channel — newest open, then newest closed, then `/main/` — and
 upgrades automatically as better channels appear. Real release content at the
 root is never overwritten by that fallback.
 
 Each deploy overlays only its own channels via `scripts/docs/publish-to-gh-pages.sh`,
-so release history accumulates instead of being wiped by the next deploy. The header
+so every other channel survives the next deploy. The header
 version dropdown (`_includes/version_switcher.html`) reads `/versions.json` at runtime;
 a separate header link points to the upstream docs at meshtastic.org. To backfill a
 release (e.g. after first enabling this), run the "Docs Release" workflow manually

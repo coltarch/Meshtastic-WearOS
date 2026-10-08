@@ -34,9 +34,7 @@ kotlin {
             implementation(projects.core.di)
             implementation(projects.core.model)
             implementation(projects.core.network)
-            implementation(projects.core.prefs)
             implementation(libs.meshtastic.protobufs)
-            implementation(projects.core.takserver)
 
             implementation(libs.jetbrains.lifecycle.runtime)
             implementation(libs.androidx.paging.common)
@@ -46,15 +44,9 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.atomicfu)
             implementation(libs.kotlinx.collections.immutable)
-        }
-
-        // Room / SQLite runtime shared between Android and Desktop JVM targets
-        getByName("jvmAndroidMain") {
-            dependencies {
-                implementation(libs.androidx.room.runtime)
-                implementation(libs.androidx.room.paging)
-                implementation(libs.androidx.sqlite.bundled)
-            }
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.room.paging)
+            implementation(libs.androidx.sqlite.bundled)
         }
 
         androidMain.dependencies {

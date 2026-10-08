@@ -59,11 +59,13 @@ class SettingsSearchViewModel : ViewModel() {
             resolved.value =
                 SettingsSearchCatalog.entries().map { entry ->
                     ResolvedSettingsEntry(
+                        id = entry.id,
                         title = getStringSuspend(entry.title),
                         description = entry.description?.let { getStringSuspend(it) },
                         screenTitle = getStringSuspend(entry.screenTitle),
                         route = entry.route,
                         isAppLocal = entry.isAppLocal,
+                        keywords = entry.keywords?.let { splitKeywords(getStringSuspend(it)) }.orEmpty(),
                     )
                 }
         }
@@ -79,5 +81,8 @@ class SettingsSearchViewModel : ViewModel() {
 
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /** The schema separates terms with `|` and ignores the whitespace around each. */
+        fun splitKeywords(text: String): List<String> = text.split('|').map { it.trim() }.filter { it.isNotEmpty() }
     }
 }

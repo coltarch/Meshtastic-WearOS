@@ -27,6 +27,8 @@ import org.meshtastic.core.common.util.CommonUri
 actual fun createClipEntry(text: String, label: String, sensitive: Boolean): ClipEntry =
     throw UnsupportedOperationException("ClipEntry instantiation not supported on iOS stub")
 
+actual fun ClipEntry.plainText(): String? = null
+
 actual fun annotatedStringFromHtml(html: String, linkStyles: TextLinkStyles?): AnnotatedString = AnnotatedString(html)
 
 @Composable actual fun rememberOpenNfcSettings(): () -> Unit = {}
@@ -50,8 +52,6 @@ actual fun rememberSaveFileLauncher(
 actual fun rememberOpenFileLauncher(onUriReceived: (CommonUri?) -> Unit): (mimeType: String) -> Unit = { _ -> }
 
 @Composable actual fun rememberOpenDocumentTreeLauncher(onTreeUriSelect: (CommonUri?) -> Unit): () -> Unit = {}
-
-@Composable actual fun rememberReadTextFromUri(): suspend (uri: CommonUri, maxChars: Int) -> String? = { _, _ -> null }
 
 @Composable
 actual fun KeepScreenOn(enabled: Boolean) {
@@ -82,6 +82,8 @@ actual fun SetScreenBrightness(brightness: Float) {
 @Composable actual fun rememberOpenAppSettings(): () -> Unit = {}
 
 @Composable actual fun rememberLocationPermissionState(): PermissionUiState = grantedPermissionUiState()
+
+@Composable actual fun rememberPreciseLocationPermissionState(): PermissionUiState = grantedPermissionUiState()
 
 @Composable actual fun rememberBluetoothPermissionState(): PermissionUiState = grantedPermissionUiState()
 

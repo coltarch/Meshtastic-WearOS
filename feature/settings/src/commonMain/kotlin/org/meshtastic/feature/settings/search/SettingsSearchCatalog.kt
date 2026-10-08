@@ -41,15 +41,21 @@ import org.meshtastic.feature.settings.navigation.ModuleRoute
  * @param description the schema's one-sentence explanation, where it has one. Matched as well as shown.
  * @param route where tapping the result goes.
  * @param screenTitle the destination's name, shown beside the result so "Enabled" says which Enabled it is.
+ * @param keywords the schema's `|`-separated extra search terms, where it has them. Matched, never shown.
  */
 data class SettingsSearchEntry(
     val title: StringResource,
     val description: StringResource?,
     val route: Route,
     val screenTitle: StringResource,
+    val keywords: StringResource? = null,
     /** True for settings that belong to this phone rather than to a radio, which a remote session must not offer. */
     val isAppLocal: Boolean = false,
-)
+) {
+    /** The title's resource name plus the destination. Unique across the catalog, which the results list keys on. */
+    val id: String
+        get() = "${title.key}@$route"
+}
 
 /**
  * The searchable surface of Settings.
@@ -66,6 +72,9 @@ object SettingsSearchCatalog {
 
     /** Suffix the generator gives a field's explanation; the base key is its title. */
     private const val DESCRIPTION_SUFFIX = "_description"
+
+    /** Suffix the generator gives a field's extra search terms. */
+    private const val KEYWORDS_SUFFIX = "_keywords"
 
     private const val PREFIX = "schema_"
 
@@ -127,9 +136,10 @@ object SettingsSearchCatalog {
         ConfigRoute.entries.map {
             it.title to it.route
         } + ModuleRoute.entries.map { it.title to it.route }
-        ).map { (title, route) ->
-        SettingsSearchEntry(title = title, description = null, route = route, screenTitle = title)
-    }
+        )
+        .map { (title, route) ->
+            SettingsSearchEntry(title = title, description = null, route = route, screenTitle = title)
+        }
 
     /** App-level settings, which have no schema behind them and so are listed by hand. */
     private val appSettings: List<Pair<StringResource, Route>> =
@@ -169,7 +179,7 @@ object SettingsSearchCatalog {
                 all.keys
                     .asSequence()
                     .filter { it.startsWith(messagePrefix) }
-                    .filterNot { it.endsWith(DESCRIPTION_SUFFIX) }
+                    .filterNot { it.endsWith(DESCRIPTION_SUFFIX) || it.endsWith(KEYWORDS_SUFFIX) }
                     .filterNot { key -> enumValuePrefixes.any { key.startsWith(it) } }
                     .sorted()
                     .map { key ->
@@ -178,6 +188,7 @@ object SettingsSearchCatalog {
                             description = all[key + DESCRIPTION_SUFFIX],
                             route = route,
                             screenTitle = screenTitle,
+                            keywords = all[key + KEYWORDS_SUFFIX],
                         )
                     }
                     .toList()

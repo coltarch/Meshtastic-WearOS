@@ -16,8 +16,12 @@
  */
 
 import com.android.build.api.dsl.ApplicationExtension
+import org.meshtastic.buildlogic.DEFAULT_LOCALE_TAG
+import org.meshtastic.buildlogic.GenerateLocaleConfigTask
+import org.meshtastic.buildlogic.LocaleQualifiersValueSource
 import org.meshtastic.buildlogic.configProperties
 import org.meshtastic.buildlogic.resolveVersionInfo
+import org.meshtastic.buildlogic.resourceLocaleFilters
 import java.util.Properties
 
 val versionInfo = resolveVersionInfo()
@@ -45,6 +49,9 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
+// The values-* directories Crowdin writes are the one list of shipped locales.
+val appResourcesDir = isolated.rootProject.projectDirectory.dir("core/resources/src/commonMain/composeResources")
+
 configure<ApplicationExtension> {
     namespace = "org.meshtastic.app"
 
@@ -71,61 +78,18 @@ configure<ApplicationExtension> {
         versionName = versionInfo.versionName
         buildConfigField("String", "MIN_FW_VERSION", "\"${versionInfo.minFwVersion}\"")
         buildConfigField("String", "ABS_MIN_FW_VERSION", "\"${versionInfo.absMinFwVersion}\"")
-        // We have to list all translated languages here,
-        // because some of our libs have bogus languages that google play
-        // doesn't like and we need to strip them (gr)
+        // Filter library resources to the translated languages, because some libs ship bogus languages that Google
+        // Play rejects (gr).
         val ci = providers.gradleProperty("ci").map { it.toBoolean() }.getOrElse(false)
         if (ci) {
             logger.lifecycle("CI build detected - limiting locale filters for faster packaging")
-            androidResources.localeFilters.addAll(listOf("en"))
+            androidResources.localeFilters.addAll(listOf(DEFAULT_LOCALE_TAG))
         } else {
-            androidResources.localeFilters.addAll(
-                listOf(
-                    "en",
-                    "ar",
-                    "bg",
-                    "ca",
-                    "cs",
-                    "de",
-                    "el",
-                    "es",
-                    "et",
-                    "fi",
-                    "fr",
-                    "ga",
-                    "gl",
-                    "hr",
-                    "ht",
-                    "hu",
-                    "is",
-                    "it",
-                    "iw",
-                    "ja",
-                    "ko",
-                    "lt",
-                    "nl",
-                    "no",
-                    "pl",
-                    "pt",
-                    "pt-rBR",
-                    "ro",
-                    "ru",
-                    "sk",
-                    "sl",
-                    "sq",
-                    "sr",
-                    "srp",
-                    "sv",
-                    "tr",
-                    "uk",
-                    "zh-rCN",
-                    "zh-rTW",
-                ),
-            )
+            val qualifiers =
+                providers.of(LocaleQualifiersValueSource::class) { parameters.resourcesDir.set(appResourcesDir) }.get()
+            androidResources.localeFilters.addAll(resourceLocaleFilters(qualifiers))
         }
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Disable ABI splits for bundle builds or when explicitly requested via Gradle property.
@@ -174,6 +138,9 @@ configure<ApplicationExtension> {
                 // what a real build carries comes from the plugin. See #6883.
                 manifestPlaceholders["MAPS_API_KEY"] = "dummy"
             }
+            if (name == "fdroid") {
+                proguardFile("proguard-rules-fdroid.pro")
+            }
         }
     }
 
@@ -197,21 +164,30 @@ secrets {
     propertiesFileName = "secrets.properties"
 }
 
+// AppSearch without dynamic-schema support indexes only the v1 XML named by the `android.app.appfunctions` property.
+ksp { arg("appfunctions:generateV1Xml", "true") }
+
+// Merging into src/main is what ships the profile in fdroid too.
+baselineProfile { mergeIntoMain = true }
+
+// The producer only has the google flavor, so only googleRelease may depend on it: fdroidRelease would fail to resolve
+// it. The plugin creates this configuration per variant, after this script runs.
+configurations
+    .matching { it.name == "googleReleaseBaselineProfile" }
+    .configureEach { dependencies.add(projects.baselineprofile) }
+
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.flavorName?.let { flavor -> variant.applicationId.set("com.geeksville.mesh.$flavor.debug") }
     }
-
-    onVariants(selector().withBuildType("release")) { variant ->
-        if (variant.flavorName == "google") {
-            val variantNameCapped = variant.name.replaceFirstChar { it.uppercase() }
-            val minifyTaskName = "minify${variantNameCapped}WithR8"
-            val uploadTaskName = "uploadMapping$variantNameCapped"
-            // Use tasks.names to check existence without eagerly realizing tasks
-            if (tasks.names.contains(uploadTaskName) && tasks.names.contains(minifyTaskName)) {
-                tasks.named(minifyTaskName).configure { finalizedBy(uploadTaskName) }
+    onVariants { variant ->
+        val generateLocaleConfig =
+            tasks.register<GenerateLocaleConfigTask>(
+                "generate${variant.name.replaceFirstChar { it.uppercase() }}LocaleConfig",
+            ) {
+                resourcesDir.set(appResourcesDir)
             }
-        }
+        variant.sources.res?.addGeneratedSourceDirectory(generateLocaleConfig, GenerateLocaleConfigTask::outputDir)
     }
 }
 
@@ -239,6 +215,7 @@ dependencies {
     implementation(projects.feature.messaging)
     implementation(projects.feature.connections)
     implementation(projects.feature.map)
+    implementation(projects.feature.coverage)
     implementation(projects.feature.node)
     implementation(projects.feature.settings)
     implementation(projects.feature.discovery)
@@ -346,8 +323,4 @@ dependencies {
     testImplementation(libs.androidx.glance.appwidget)
     // JVM variant provides the host-platform native library for BundledSQLiteDriver under Robolectric
     testRuntimeOnly(libs.androidx.sqlite.bundled.jvm)
-
-    // Producer of the baseline profile consumed by the release build. The androidx.baselineprofile
-    // plugin merges the generated rules into src/<variant>/generated/baselineProfiles at build time.
-    baselineProfile(projects.baselineprofile)
 }

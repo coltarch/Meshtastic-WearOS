@@ -104,10 +104,16 @@ class UiPrefsImpl(private val dataStore: UiDataStore, dispatchers: CoroutineDisp
     }
 
     override val showQuickChat: StateFlow<Boolean> =
-        dataStore.data.map { it[KEY_SHOW_QUICK_CHAT_PREF] ?: false }.stateIn(scope, SharingStarted.Eagerly, false)
+        dataStore.data
+            .map { it[KEY_SHOW_QUICK_CHAT_PREF] ?: SHOW_QUICK_CHAT_BY_DEFAULT }
+            .stateIn(scope, SharingStarted.Eagerly, SHOW_QUICK_CHAT_BY_DEFAULT)
 
-    override fun setShowQuickChat(show: Boolean) {
-        scope.launch { dataStore.edit { it[KEY_SHOW_QUICK_CHAT_PREF] = show } }
+    override fun toggleShowQuickChat() {
+        scope.launch {
+            dataStore.edit {
+                it[KEY_SHOW_QUICK_CHAT_PREF] = !(it[KEY_SHOW_QUICK_CHAT_PREF] ?: SHOW_QUICK_CHAT_BY_DEFAULT)
+            }
+        }
     }
 
     override val showFullMessageTimestamps: StateFlow<Boolean> =
@@ -280,6 +286,17 @@ class UiPrefsImpl(private val dataStore: UiDataStore, dispatchers: CoroutineDisp
         scope.launch { dataStore.edit { it[NodeListLayoutPreferences.KEY_SHOW_TELEMETRY] = value } }
     }
 
+    override val chirpyHopBestScore: StateFlow<Int> =
+        dataStore.data.map { it[KEY_CHIRPY_HOP_BEST_SCORE] ?: 0 }.stateIn(scope, SharingStarted.Eagerly, 0)
+
+    override fun recordChirpyHopScore(score: Int) {
+        scope.launch {
+            dataStore.edit { prefs ->
+                if (score > (prefs[KEY_CHIRPY_HOP_BEST_SCORE] ?: 0)) prefs[KEY_CHIRPY_HOP_BEST_SCORE] = score
+            }
+        }
+    }
+
     private fun Preferences.toNodeFilterPrefs() = NodeFilterPrefs(
         includeUnknown = this[KEY_INCLUDE_UNKNOWN] ?: NodeFilterPrefs().includeUnknown,
         excludeInfrastructure = this[KEY_EXCLUDE_INFRASTRUCTURE] ?: false,
@@ -315,6 +332,7 @@ class UiPrefsImpl(private val dataStore: UiDataStore, dispatchers: CoroutineDisp
         private val KEY_UNITS_OVERRIDE = intPreferencesKey("units_override")
         val KEY_LOCALE = stringPreferencesKey("locale")
         val KEY_NODE_SORT = intPreferencesKey("node-sort-option")
+        val KEY_CHIRPY_HOP_BEST_SCORE = intPreferencesKey("chirpy-hop-best-score")
         val KEY_INCLUDE_UNKNOWN = booleanPreferencesKey("include-unknown")
         val KEY_EXCLUDE_INFRASTRUCTURE = booleanPreferencesKey("exclude-infrastructure")
         val KEY_ONLY_ONLINE = booleanPreferencesKey("only-online")
@@ -332,6 +350,7 @@ class UiPrefsImpl(private val dataStore: UiDataStore, dispatchers: CoroutineDisp
         val KEY_SHOW_NETWORK_TRANSPORT = booleanPreferencesKey("show-network-transport")
         val KEY_SHOW_USB_TRANSPORT = booleanPreferencesKey("show-usb-transport")
         private const val MAX_FIRMWARE_UPDATE_NOTIFICATION_KEYS = 100
+        private const val SHOW_QUICK_CHAT_BY_DEFAULT = false
 
         private fun parseDeviceType(name: String): DeviceType? = DeviceType.entries.firstOrNull { it.name == name }
 

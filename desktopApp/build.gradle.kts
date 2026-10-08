@@ -20,8 +20,10 @@ import org.gradle.api.file.FileSystemOperations
 import org.gradle.process.ExecOperations
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.meshtastic.buildlogic.configureGraphTasks
+import org.meshtastic.buildlogic.kotlinWarningsAsErrors
 import org.meshtastic.buildlogic.maplibreDesktopRuntime
 import org.meshtastic.buildlogic.resolveVersionInfo
 import java.io.File
@@ -33,7 +35,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     // Adds `:desktopApp:hotRun` — the app relaunched with live recomposition on source edits.
     // Needs the JetBrains Runtime for enhanced class redefinition, which the jvmToolchain block
-    // below already pins (vendor JETBRAINS, resolved by the foojay resolver in settings.gradle.kts).
+    // below already pins (vendor JETBRAINS; foojay lists no JBR 25, so CI installs it with setup-java).
     // Version-less because the Compose Multiplatform plugin already carries hot-reload on the
     // build classpath; requesting a version fails resolution ("already on the classpath with an
     // unknown version"), the same reason Mokkery is applied bare below.
@@ -113,7 +115,8 @@ kotlin {
     }
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_25)
-        freeCompilerArgs.add("-jvm-default=no-compatibility")
+        jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
+        allWarningsAsErrors.set(kotlinWarningsAsErrors)
     }
 }
 
@@ -369,6 +372,7 @@ dependencies {
     implementation(projects.feature.messaging)
     implementation(projects.feature.connections)
     implementation(projects.feature.map)
+    implementation(projects.feature.coverage)
     implementation(projects.feature.discovery)
     implementation(projects.feature.firmware)
     implementation(projects.feature.wifiProvision)
@@ -420,7 +424,6 @@ dependencies {
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite.bundled)
-    implementation(libs.kotlinx.collections.immutable)
 
     implementation(libs.jna)
 

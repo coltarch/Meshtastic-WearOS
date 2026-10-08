@@ -48,10 +48,12 @@ import org.meshtastic.core.resources.ic_memory
 import org.meshtastic.core.resources.ic_perm_scan_wifi
 import org.meshtastic.core.resources.ic_power
 import org.meshtastic.core.resources.ic_router
+import org.meshtastic.core.resources.ic_terminal
 import org.meshtastic.core.resources.neighbor_info
 import org.meshtastic.core.resources.pax
 import org.meshtastic.core.resources.position_log
 import org.meshtastic.core.resources.power
+import org.meshtastic.core.resources.remote_shell
 import org.meshtastic.core.resources.signal
 import org.meshtastic.core.resources.traceroute
 import org.meshtastic.core.ui.component.ScrollToTopEvent
@@ -69,6 +71,9 @@ import org.meshtastic.feature.node.metrics.PositionLogScreen
 import org.meshtastic.feature.node.metrics.PowerMetricsScreen
 import org.meshtastic.feature.node.metrics.SignalMetricsScreen
 import org.meshtastic.feature.node.metrics.TracerouteLogScreen
+import org.meshtastic.feature.node.metrics.TracerouteMapScreen
+import org.meshtastic.feature.node.metrics.terminal.RemoteShellScreen
+import org.meshtastic.feature.node.metrics.terminal.RemoteShellViewModel
 import kotlin.reflect.KClass
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -128,12 +133,24 @@ fun EntryProviderScope<NavKey>.nodeDetailGraph(backStack: NavBackStack<NavKey>) 
     }
 
     entry<NodeDetailRoute.TracerouteMap>(metadata = { ListDetailSceneStrategy.extraPane() }) { args ->
-        val tracerouteMapScreen = org.meshtastic.core.ui.util.LocalTracerouteMapScreenProvider.current
-        tracerouteMapScreen(
-            args.destNum,
-            args.requestId,
-            args.logUuid,
-            dropUnlessResumed { backStack.removeLastOrNull() },
+        val metricsViewModel = koinViewModel<MetricsViewModel> { parametersOf(args.destNum) }
+        metricsViewModel.setNodeId(args.destNum)
+
+        TracerouteMapScreen(
+            metricsViewModel = metricsViewModel,
+            requestId = args.requestId,
+            logUuid = args.logUuid,
+            onNavigateUp = dropUnlessResumed { backStack.removeLastOrNull() },
+        )
+    }
+
+    // RemoteShell uses its own ViewModel and is wired up separately from the MetricsViewModel-based screens. No pane
+    // metadata: a terminal wants the whole window, so it takes the single-pane fallback instead of the extra pane.
+    entry<NodeDetailRoute.RemoteShell> { args ->
+        val remoteShellViewModel = koinViewModel<RemoteShellViewModel> { parametersOf(args.destNum) }
+        RemoteShellScreen(
+            viewModel = remoteShellViewModel,
+            onNavigateUp = dropUnlessResumed { backStack.removeLastOrNull() },
         )
     }
 
@@ -166,6 +183,7 @@ fun EntryProviderScope<NavKey>.nodeDetailGraph(backStack: NavBackStack<NavKey>) 
             NodeDetailRoute.NeighborInfoLog::class ->
                 addNodeDetailScreenComposable<NodeDetailRoute.NeighborInfoLog>(backStack, routeInfo) { it.destNum }
 
+            // NodeDetailRoute.RemoteShell is handled by the dedicated entry above.
             else -> Unit
         }
     }
@@ -188,7 +206,6 @@ private inline fun <reified R : Route> EntryProviderScope<NavKey>.addNodeDetailS
     }
 }
 
-/** Expect declaration for the platform-specific traceroute map screen. */
 enum class NodeDetailScreen(
     val title: StringResource,
     val routeClass: KClass<out Route>,
@@ -254,5 +271,13 @@ enum class NodeDetailScreen(
         NodeDetailRoute.AirQualityMetrics::class,
         Res.drawable.ic_air,
         { metricsVM, onNavigateUp -> AirQualityMetricsScreen(metricsVM, onNavigateUp) },
+    ),
+    REMOTE_SHELL(
+        Res.string.remote_shell,
+        NodeDetailRoute.RemoteShell::class,
+        Res.drawable.ic_terminal,
+        // Navigation for RemoteShell is handled by a dedicated entry<NodeDetailRoute.RemoteShell>
+        // block in nodeDetailGraph() that resolves RemoteShellViewModel instead of MetricsViewModel.
+        { _, _ -> },
     ),
 }

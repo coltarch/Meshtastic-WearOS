@@ -67,6 +67,12 @@ data class Capabilities(val firmwareVersion: String?, internal val forceEnableAl
     /** Support for sharing contact information via QR codes. Supported since firmware v2.6.8. */
     val supportsQrCodeSharing = atLeast(V2_6_8)
 
+    /**
+     * Support for the DMShell module (a PTY over the mesh, REMOTE_SHELL_APP). Firmware v2.8.2 is the first to carry it,
+     * and only Linux `meshtasticd` builds compile it in, which the version alone cannot tell.
+     */
+    val supportsRemoteShell = atLeast(V2_8_2)
+
     /** Support for the Status Message module, from the `since_firmware` its `ModuleConfig` field declares. */
     val supportsStatusMessage = offers(ModuleConfig.statusmessage)
 
@@ -92,6 +98,13 @@ data class Capabilities(val firmwareVersion: String?, internal val forceEnableAl
 
     /** Support for ESP32 Unified OTA. Supported since firmware v2.7.18. */
     val supportsEsp32Ota = atLeast(V2_7_18)
+
+    /**
+     * Whether a `coding_rate` above the modem preset's own raises it while `use_preset` is on. Supported since firmware
+     * v2.7.18 (meshtastic/firmware#9155); older firmware uses the preset's rate whatever is stored. `coding_rate` is
+     * far older than that, so its schema gates cannot answer this.
+     */
+    val supportsCodingRateOverride = atLeast(V2_7_18)
 
     /**
      * Support for the LoRa region→preset compatibility map. Supported since firmware v2.8.0. Older firmware never sends
@@ -142,6 +155,7 @@ data class Capabilities(val firmwareVersion: String?, internal val forceEnableAl
         private val V2_7_12 = DeviceVersion("2.7.12")
         private val V2_7_18 = DeviceVersion("2.7.18")
         private val V2_8_0 = DeviceVersion("2.8.0")
+        private val V2_8_2 = DeviceVersion("2.8.2")
         private val UNRELEASED = DeviceVersion("9.9.9")
     }
 }
