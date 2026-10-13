@@ -222,6 +222,8 @@ co2_temperature
 collapse_chart
 collapsed
 communicate_off_the_grid
+companion_mode
+companion_mode_description
 ### COMPASS ###
 compass_bearing
 compass_bearing_na
@@ -553,6 +555,7 @@ event_use_event_theme
 exchange_position
 expand_chart
 expanded
+experimental_badge
 expires
 ### EXPORT ###
 export_configuration
@@ -562,6 +565,7 @@ export_node_db
 export_tak_data_package
 external_notification
 external_notification_config
+externally_powered
 factory_reset
 fair
 fallback_node_name
@@ -810,6 +814,7 @@ key_verification_title
 label_with_unit
 last_heard_filter_label
 last_position_update
+last_seen
 latest_alpha_firmware
 latest_stable_firmware
 latitude
@@ -1159,6 +1164,7 @@ nfc_disabled
 nitrate
 nitrogen
 ### NO ###
+no
 no_bluetooth_devices_hint
 no_bluetooth_devices_seen
 no_custom_tile_sources_found
@@ -1235,6 +1241,7 @@ node_sort_last_heard
 node_sort_title
 node_sort_via_favorite
 node_sort_via_mqtt
+node_unavailable
 nodedb_reset
 ### NODES ###
 nodes
@@ -1269,6 +1276,7 @@ notifications_on_alert_bell_receipt
 notifications_on_message_receipt
 now
 ### OFFLINE ###
+offline
 offline_maps
 offline_maps_empty
 offline_terrain_cache_detail
@@ -1283,15 +1291,18 @@ one_hour_short
 one_month
 one_week
 one_wire_temperature
+online
 only_favorites
 ### OPEN ###
 open_bluetooth_settings
 open_compass
 open_location_settings
+open_on_phone
 open_settings
 open_source_description
 open_source_libraries
 open_wifi_settings
+operating_mode
 options
 orient_north
 orp
@@ -1659,6 +1670,25 @@ solar_irradiance
 speed
 speed_kmh
 speed_mph
+### STANDALONE ###
+standalone_radio_battery_warning
+standalone_radio_connected
+standalone_radio_connecting
+standalone_radio_connection
+standalone_radio_connection_failed
+standalone_radio_experimental_description
+standalone_radio_location_required
+standalone_radio_mode
+standalone_radio_mode_description
+standalone_radio_no_radio
+standalone_radio_permission_action
+standalone_radio_phone_sync_notice
+standalone_radio_scan
+standalone_radio_scan_failed
+standalone_radio_scanning
+standalone_radio_stop_scan
+standalone_radio_unsupported
+state_broadcast_seconds
 status_message
 status_message_summary
 stay_connected_anywhere
@@ -1784,6 +1814,7 @@ two_weeks
 type
 type_a_message
 udp_enabled
+unavailable
 undo
 unit_dbm
 unit_khz
@@ -1838,22 +1869,90 @@ view_on_map
 view_release
 voltage
 warning
-water_ph
 ### WATCH ###
+watch_connected_watch
+watch_connection_section
+watch_last_communication
+watch_last_seen
+watch_message_retention_description
+watch_message_retention_label
+watch_message_retention_option
+watch_multiple_reachable
+watch_no_communication_yet
+watch_not_reachable
+watch_reachable
+watch_searching_for_watch
 watch_settings_title
+watch_status
+watch_status_accessibility
+watch_status_checking
+watch_status_connected
+watch_status_disconnected
+watch_status_sync_failed
+watch_status_syncing
+watch_sync_channels_description
+watch_sync_channels_label
 watch_sync_enabled_description
 watch_sync_enabled_label
+watch_sync_interrupted
 watch_sync_messages_description
 watch_sync_messages_label
 watch_sync_nodes_description
 watch_sync_nodes_label
+watch_sync_not_connected
+watch_sync_nothing_selected
 watch_sync_now_description
 watch_sync_now_label
 watch_sync_privacy_description
+watch_sync_problem
+watch_sync_problem_connection
+watch_sync_problem_transfer
+watch_sync_progress
+watch_sync_progress_channels
+watch_sync_progress_messages
+watch_sync_progress_nodes
+watch_sync_progress_quick_replies
+watch_sync_progress_radio_status
+watch_sync_quick_replies_description
+watch_sync_quick_replies_label
+watch_sync_radio_status_description
+watch_sync_radio_status_label
+watch_sync_retry
+watch_sync_services_unavailable
+watch_sync_state_description
+watch_sync_state_disabled
+watch_sync_state_enabled
+watch_sync_what_to_sync
+watch_time_just_now
+water_ph
 waypoint_delete
 waypoint_edit
 waypoint_new
 waypoint_received
+### WEAR ###
+wear_mode_change_confirm
+wear_mode_change_continue
+wear_mode_change_restart
+wear_mode_restart_action
+wear_mode_restart_required
+wear_no_channels
+wear_no_channels_description
+wear_no_messages
+wear_no_nodes
+wear_no_nodes_description
+wear_node_card_content_description
+wear_phone_connection
+wear_phone_linked
+wear_phone_linked_description
+wear_phone_not_linked
+wear_phone_not_linked_description
+wear_sync_failed
+wear_sync_failed_description
+wear_sync_in_progress
+wear_sync_now
+wear_sync_retrying
+wear_waiting_first_sync
+wear_waiting_first_sync_description
 website
 weight
 what_is_meshtastic
@@ -1911,6 +2010,7 @@ write_nfc_failed
 write_nfc_subtext
 write_nfc_success
 write_nfc_text
+yes
 you
 zh_CN
 zh_TW

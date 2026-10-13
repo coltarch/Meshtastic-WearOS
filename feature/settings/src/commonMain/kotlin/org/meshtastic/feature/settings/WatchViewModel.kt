@@ -18,69 +18,124 @@ package org.meshtastic.feature.settings
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.atomicfu.atomic
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 import org.koin.core.annotation.KoinViewModel
+import org.meshtastic.core.repository.RecentMessageLimit
+import org.meshtastic.core.repository.WatchConnectionError
+import org.meshtastic.core.repository.WatchConnectionState
 import org.meshtastic.core.repository.WatchPrefs
+import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.WatchSyncProgress
+import org.meshtastic.core.repository.WatchSyncState
+import org.meshtastic.core.repository.WatchSyncStateHolder
 import org.meshtastic.core.ui.viewmodel.stateInWhileSubscribed
 
 @KoinViewModel
-class WatchViewModel(private val watchPrefs: WatchPrefs) : ViewModel() {
+class WatchViewModel(private val watchPrefs: WatchPrefs, private val watchSyncStateHolder: WatchSyncStateHolder) :
+    ViewModel() {
     val uiState: StateFlow<WatchSettingsUiState> =
-        combine(watchPrefs.pushToWatchEnabled, watchPrefs.syncNodesEnabled, watchPrefs.syncMessagesEnabled) {
-                pushToWatchEnabled,
-                syncNodesEnabled,
-                syncMessagesEnabled,
-            ->
-            WatchSettingsUiState(
-                pushToWatchEnabled = pushToWatchEnabled,
-                syncNodesEnabled = syncNodesEnabled,
-                syncMessagesEnabled = syncMessagesEnabled,
-            )
-        }
+        combine(
+            watchPrefs.watchConnectivityEnabled,
+            watchPrefs.syncPreferences,
+            watchPrefs.lastSuccessfulSyncMillis,
+            watchSyncStateHolder.state,
+            ::buildWatchSettingsUiState,
+        )
             .stateInWhileSubscribed(
                 initialValue =
-                WatchSettingsUiState(
-                    pushToWatchEnabled = watchPrefs.pushToWatchEnabled.value,
-                    syncNodesEnabled = watchPrefs.syncNodesEnabled.value,
-                    syncMessagesEnabled = watchPrefs.syncMessagesEnabled.value,
+                buildWatchSettingsUiState(
+                    watchConnectivityEnabled = watchPrefs.watchConnectivityEnabled.value,
+                    syncPreferences = watchPrefs.syncPreferences.value,
+                    persistedLastSuccessfulSyncMillis = watchPrefs.lastSuccessfulSyncMillis.value,
+                    syncState = watchSyncStateHolder.state.value,
                 ),
             )
 
-    private val syncRequestGuard = atomic(false)
-
-    fun setPushToWatchEnabled(enabled: Boolean) = watchPrefs.setPushToWatchEnabled(enabled)
+    fun setWatchConnectivityEnabled(enabled: Boolean) = watchPrefs.setWatchConnectivityEnabled(enabled)
 
     fun setSyncNodesEnabled(enabled: Boolean) = watchPrefs.setSyncNodesEnabled(enabled)
 
-    fun setSyncMessagesEnabled(enabled: Boolean) = watchPrefs.setSyncMessagesEnabled(enabled)
+    fun setSyncChannelsEnabled(enabled: Boolean) = watchPrefs.setSyncChannelsEnabled(enabled)
 
-    /** Requests one synchronization and ignores repeated taps during a short interaction guard window. */
+    fun setSyncRecentMessagesEnabled(enabled: Boolean) = watchPrefs.setSyncRecentMessagesEnabled(enabled)
+
+    fun setRecentMessageLimit(limit: RecentMessageLimit) = watchPrefs.setRecentMessageLimit(limit)
+
+    fun setSyncQuickRepliesEnabled(enabled: Boolean) = watchPrefs.setSyncQuickRepliesEnabled(enabled)
+
+    fun setSyncRadioStatusEnabled(enabled: Boolean) = watchPrefs.setSyncRadioStatusEnabled(enabled)
+
+    /** Requests one serialized synchronization unless a connection check or sync is already active. */
     fun requestSync() {
-        if (!syncRequestGuard.compareAndSet(expect = false, update = true)) return
+        if (!watchPrefs.syncPreferences.value.hasEnabledCategory) return
+        if (!watchSyncStateHolder.beginManualSyncRequest()) return
 
         try {
             watchPrefs.requestSync()
-        } finally {
-            viewModelScope.launch {
-                delay(SYNC_REQUEST_GUARD_MILLIS)
-                syncRequestGuard.value = false
-            }
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            watchSyncStateHolder.syncFailed(WatchConnectionError.SynchronizationFailed)
+            throw failure
         }
-    }
-
-    private companion object {
-        const val SYNC_REQUEST_GUARD_MILLIS = 500L
     }
 }
 
 @Immutable
-data class WatchSettingsUiState(
-    val pushToWatchEnabled: Boolean = true,
-    val syncNodesEnabled: Boolean = true,
-    val syncMessagesEnabled: Boolean = true,
+data class WatchConnectionUiState(
+    val connectionState: WatchConnectionState = WatchConnectionState.Disconnected,
+    val watchName: String? = null,
+    val reachableWatchCount: Int = 0,
+    val isReachable: Boolean = false,
+    val lastCommunicationMillis: Long? = null,
+    val lastSuccessfulSyncMillis: Long? = null,
+    val syncProgress: WatchSyncProgress? = null,
+    val canSync: Boolean = true,
+    val nothingSelected: Boolean = false,
+    val error: WatchConnectionError? = null,
 )
+
+@Immutable
+data class WatchSettingsUiState(
+    val watchConnectivityEnabled: Boolean = true,
+    val syncPreferences: WatchSyncPreferences = WatchSyncPreferences(),
+    val connection: WatchConnectionUiState = WatchConnectionUiState(),
+)
+
+private fun buildWatchSettingsUiState(
+    watchConnectivityEnabled: Boolean,
+    syncPreferences: WatchSyncPreferences,
+    persistedLastSuccessfulSyncMillis: Long?,
+    syncState: WatchSyncState,
+): WatchSettingsUiState {
+    val hasSyncContent = syncPreferences.hasEnabledCategory
+    val isActive =
+        syncState.connectionState == WatchConnectionState.CheckingConnection ||
+            syncState.connectionState == WatchConnectionState.Syncing
+    val visibleConnection =
+        if (watchConnectivityEnabled) {
+            WatchConnectionUiState(
+                connectionState = syncState.connectionState,
+                watchName = syncState.watchName,
+                reachableWatchCount = syncState.reachableWatchCount,
+                isReachable = syncState.reachableWatchCount > 0,
+                lastCommunicationMillis = syncState.lastCommunicationMillis,
+                lastSuccessfulSyncMillis = syncState.lastSuccessfulSyncMillis ?: persistedLastSuccessfulSyncMillis,
+                syncProgress = syncState.syncProgress,
+                canSync = hasSyncContent && !isActive,
+                nothingSelected = !hasSyncContent,
+                error = syncState.error,
+            )
+        } else {
+            WatchConnectionUiState(
+                canSync = false,
+                nothingSelected = !hasSyncContent,
+                lastSuccessfulSyncMillis = persistedLastSuccessfulSyncMillis,
+            )
+        }
+
+    return WatchSettingsUiState(
+        watchConnectivityEnabled = watchConnectivityEnabled,
+        syncPreferences = syncPreferences,
+        connection = visibleConnection,
+    )
+}

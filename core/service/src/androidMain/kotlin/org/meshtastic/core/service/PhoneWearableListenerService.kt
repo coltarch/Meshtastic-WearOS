@@ -30,6 +30,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.meshtastic.core.di.CoroutineDispatchers
+import org.meshtastic.core.repository.WatchPrefs
 import org.meshtastic.core.repository.usecase.SendMessageUseCase
 
 /** Listener that receives validated commands from a watch through the Wearable Message API. */
@@ -37,6 +38,7 @@ class PhoneWearableListenerService : WearableListenerService() {
     private val syncService: WearableSyncService by inject()
     private val sendMessageUseCase: SendMessageUseCase by inject()
     private val dispatchers: CoroutineDispatchers by inject()
+    private val watchPrefs: WatchPrefs by inject()
     private val failureLogger = WearableFailureLogger(Logger.withTag("PhoneWearableListenerService"))
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         failureLogger.log(WearableFailureLog.UnexpectedCommand, throwable)
@@ -48,36 +50,40 @@ class PhoneWearableListenerService : WearableListenerService() {
             requestSync = syncService::forceSync,
             sendMessage = { text, contactKey -> sendMessageUseCase(text, contactKey) },
             openConversation = ::openConversation,
+            openNode = ::openNode,
         )
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
-        val action = router.route(messageEvent.path, messageEvent.data, messageEvent.sourceNodeId)
-        when (action) {
-            WearableIncomingAction.Malformed -> {
-                Logger.w { "Rejected malformed wearable command" }
-                return
-            }
-
-            WearableIncomingAction.Unknown -> {
-                Logger.d { "Ignored unknown wearable command" }
-                return
-            }
-
-            else -> Logger.d { "Handling wearable command" }
+        if (!watchPrefs.watchConnectivityEnabled.value) {
+            Logger.d { "Ignored wearable command while watch connectivity is off" }
+        } else {
+            handleEnabledMessage(messageEvent)
         }
+    }
 
-        scope.launch {
-            try {
-                handler.handle(action)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: IllegalArgumentException) {
-                failureLogger.log(WearableFailureLog.InvalidCommand, e)
-            } catch (e: IllegalStateException) {
-                failureLogger.log(WearableFailureLog.UnavailableCommand, e)
-            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                failureLogger.log(WearableFailureLog.FailedCommand, e)
+    private fun handleEnabledMessage(messageEvent: MessageEvent) {
+        when (val action = router.route(messageEvent.path, messageEvent.data, messageEvent.sourceNodeId)) {
+            WearableIncomingAction.Malformed -> Logger.w { "Rejected malformed wearable command" }
+
+            WearableIncomingAction.Unknown -> Logger.d { "Ignored unknown wearable command" }
+
+            else -> {
+                Logger.d { "Handling wearable command" }
+                syncService.recordSuccessfulWatchCommunication()
+                scope.launch {
+                    try {
+                        handler.handle(action)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: IllegalArgumentException) {
+                        failureLogger.log(WearableFailureLog.InvalidCommand, e)
+                    } catch (e: IllegalStateException) {
+                        failureLogger.log(WearableFailureLog.UnavailableCommand, e)
+                    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                        failureLogger.log(WearableFailureLog.FailedCommand, e)
+                    }
+                }
             }
         }
     }
@@ -102,6 +108,24 @@ class PhoneWearableListenerService : WearableListenerService() {
             failureLogger.log(WearableFailureLog.OpenConversation, e)
         } catch (e: SecurityException) {
             failureLogger.log(WearableFailureLog.OpenConversation, e)
+        }
+    }
+
+    private fun openNode(nodeNum: Int) {
+        val uri =
+            Uri.Builder().scheme("https").authority("meshtastic.org").appendPath("nodes").appendPath("$nodeNum").build()
+        val intent =
+            Intent(Intent.ACTION_VIEW, uri)
+                .setPackage(packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
+        try {
+            startActivity(intent)
+            Logger.d { "Opened wearable node on phone" }
+        } catch (e: ActivityNotFoundException) {
+            failureLogger.log(WearableFailureLog.OpenNode, e)
+        } catch (e: SecurityException) {
+            failureLogger.log(WearableFailureLog.OpenNode, e)
         }
     }
 

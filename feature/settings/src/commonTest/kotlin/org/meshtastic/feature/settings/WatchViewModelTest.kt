@@ -21,12 +21,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.meshtastic.core.repository.RecentMessageLimit
 import org.meshtastic.core.repository.WatchPrefs
+import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.WatchSyncStateHolder
+import org.meshtastic.core.repository.WearOperatingMode
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -37,13 +40,15 @@ import kotlin.test.assertFailsWith
 class WatchViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var watchPrefs: RecordingWatchPrefs
+    private lateinit var syncStateHolder: WatchSyncStateHolder
     private lateinit var viewModel: WatchViewModel
 
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         watchPrefs = RecordingWatchPrefs()
-        viewModel = WatchViewModel(watchPrefs)
+        syncStateHolder = WatchSyncStateHolder()
+        viewModel = WatchViewModel(watchPrefs, syncStateHolder)
     }
 
     @AfterTest
@@ -59,15 +64,17 @@ class WatchViewModelTest {
     @Test
     fun `initial state reads existing preference values`() = runTest(testDispatcher) {
         watchPrefs =
-            RecordingWatchPrefs(pushToWatchEnabled = false, syncNodesEnabled = true, syncMessagesEnabled = false)
-        viewModel = WatchViewModel(watchPrefs)
+            RecordingWatchPrefs(
+                watchConnectivityEnabled = false,
+                syncPreferences = WatchSyncPreferences(syncRecentMessages = false),
+            )
+        viewModel = WatchViewModel(watchPrefs, syncStateHolder)
 
         viewModel.uiState.test {
             assertEquals(
                 WatchSettingsUiState(
-                    pushToWatchEnabled = false,
-                    syncNodesEnabled = true,
-                    syncMessagesEnabled = false,
+                    watchConnectivityEnabled = false,
+                    syncPreferences = WatchSyncPreferences(syncRecentMessages = false),
                 ),
                 awaitItem(),
             )
@@ -80,16 +87,20 @@ class WatchViewModelTest {
         viewModel.uiState.test {
             awaitItem()
 
-            watchPrefs.pushToWatchEnabled.value = false
-            watchPrefs.syncNodesEnabled.value = false
-            watchPrefs.syncMessagesEnabled.value = false
+            watchPrefs.watchConnectivityEnabled.value = false
+            watchPrefs.syncPreferences.value = WatchSyncPreferences(
+                syncNodes = false,
+                syncChannels = false,
+                syncRecentMessages = false,
+                syncQuickReplies = false,
+                syncRadioStatus = false,
+            )
             runCurrent()
 
             assertEquals(
                 WatchSettingsUiState(
-                    pushToWatchEnabled = false,
-                    syncNodesEnabled = false,
-                    syncMessagesEnabled = false,
+                    watchConnectivityEnabled = false,
+                    syncPreferences = watchPrefs.syncPreferences.value,
                 ),
                 expectMostRecentItem(),
             )
@@ -99,13 +110,21 @@ class WatchViewModelTest {
 
     @Test
     fun `each toggle delegates to the matching preference`() {
-        viewModel.setPushToWatchEnabled(false)
+        viewModel.setWatchConnectivityEnabled(false)
         viewModel.setSyncNodesEnabled(false)
-        viewModel.setSyncMessagesEnabled(false)
+        viewModel.setSyncChannelsEnabled(false)
+        viewModel.setSyncRecentMessagesEnabled(false)
+        viewModel.setRecentMessageLimit(RecentMessageLimit.FIFTY)
+        viewModel.setSyncQuickRepliesEnabled(false)
+        viewModel.setSyncRadioStatusEnabled(false)
 
         assertEquals(listOf(false), watchPrefs.pushToWatchCalls)
         assertEquals(listOf(false), watchPrefs.syncNodesCalls)
-        assertEquals(listOf(false), watchPrefs.syncMessagesCalls)
+        assertEquals(listOf(false), watchPrefs.syncChannelsCalls)
+        assertEquals(listOf(false), watchPrefs.syncRecentMessagesCalls)
+        assertEquals(listOf(RecentMessageLimit.FIFTY), watchPrefs.messageLimitCalls)
+        assertEquals(listOf(false), watchPrefs.syncQuickRepliesCalls)
+        assertEquals(listOf(false), watchPrefs.syncRadioStatusCalls)
     }
 
     @Test
@@ -113,17 +132,38 @@ class WatchViewModelTest {
         viewModel.uiState.test {
             awaitItem()
 
-            viewModel.setPushToWatchEnabled(false)
+            viewModel.setWatchConnectivityEnabled(false)
             runCurrent()
 
             assertEquals(
                 WatchSettingsUiState(
-                    pushToWatchEnabled = false,
-                    syncNodesEnabled = true,
-                    syncMessagesEnabled = true,
+                    watchConnectivityEnabled = false,
                 ),
                 expectMostRecentItem(),
             )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `all categories disabled reports nothing selected and disables manual sync`() = runTest(testDispatcher) {
+        viewModel.uiState.test {
+            awaitItem()
+            watchPrefs.syncPreferences.value =
+                WatchSyncPreferences(
+                    syncNodes = false,
+                    syncChannels = false,
+                    syncRecentMessages = false,
+                    syncQuickReplies = false,
+                    syncRadioStatus = false,
+                )
+            runCurrent()
+
+            val state = expectMostRecentItem()
+            assertEquals(false, state.connection.canSync)
+            assertEquals(true, state.connection.nothingSelected)
+            viewModel.requestSync()
+            assertEquals(0, watchPrefs.syncRequestCalls)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -133,8 +173,7 @@ class WatchViewModelTest {
         viewModel.requestSync()
         assertEquals(1, watchPrefs.syncRequestCalls)
 
-        advanceTimeBy(500)
-        runCurrent()
+        syncStateHolder.syncSucceeded(1L)
         viewModel.requestSync()
 
         assertEquals(2, watchPrefs.syncRequestCalls)
@@ -154,48 +193,89 @@ class WatchViewModelTest {
         assertFailsWith<IllegalStateException> { viewModel.requestSync() }
 
         watchPrefs.syncRequestFailure = null
-        advanceTimeBy(500)
-        runCurrent()
         viewModel.requestSync()
 
         assertEquals(2, watchPrefs.syncRequestCalls)
     }
 
     private class RecordingWatchPrefs(
-        pushToWatchEnabled: Boolean = true,
-        syncNodesEnabled: Boolean = true,
-        syncMessagesEnabled: Boolean = true,
+        watchConnectivityEnabled: Boolean = true,
+        syncPreferences: WatchSyncPreferences = WatchSyncPreferences(),
     ) : WatchPrefs {
-        override val pushToWatchEnabled = MutableStateFlow(pushToWatchEnabled)
-        override val syncNodesEnabled = MutableStateFlow(syncNodesEnabled)
-        override val syncMessagesEnabled = MutableStateFlow(syncMessagesEnabled)
+        override val operatingMode = MutableStateFlow(WearOperatingMode.COMPANION)
+        override val watchConnectivityEnabled = MutableStateFlow(watchConnectivityEnabled)
+        override val syncPreferences = MutableStateFlow(syncPreferences)
+        override val highContrastModeEnabled = MutableStateFlow(false)
         override val syncRequest = MutableStateFlow(0L)
+        override val lastSuccessfulSyncMillis = MutableStateFlow<Long?>(null)
 
         val pushToWatchCalls = mutableListOf<Boolean>()
         val syncNodesCalls = mutableListOf<Boolean>()
-        val syncMessagesCalls = mutableListOf<Boolean>()
+        val syncChannelsCalls = mutableListOf<Boolean>()
+        val syncRecentMessagesCalls = mutableListOf<Boolean>()
+        val messageLimitCalls = mutableListOf<RecentMessageLimit>()
+        val syncQuickRepliesCalls = mutableListOf<Boolean>()
+        val syncRadioStatusCalls = mutableListOf<Boolean>()
         var syncRequestCalls = 0
         var syncRequestFailure: Exception? = null
 
-        override fun setPushToWatchEnabled(enabled: Boolean) {
+        override fun setOperatingMode(mode: WearOperatingMode) {
+            operatingMode.value = mode
+        }
+
+        override suspend fun readOperatingMode(): WearOperatingMode = operatingMode.value
+
+        override suspend fun setOperatingModeAndWait(mode: WearOperatingMode) {
+            operatingMode.value = mode
+        }
+
+        override fun setWatchConnectivityEnabled(enabled: Boolean) {
             pushToWatchCalls += enabled
-            pushToWatchEnabled.value = enabled
+            watchConnectivityEnabled.value = enabled
         }
 
         override fun setSyncNodesEnabled(enabled: Boolean) {
             syncNodesCalls += enabled
-            syncNodesEnabled.value = enabled
+            syncPreferences.value = syncPreferences.value.copy(syncNodes = enabled)
         }
 
-        override fun setSyncMessagesEnabled(enabled: Boolean) {
-            syncMessagesCalls += enabled
-            syncMessagesEnabled.value = enabled
+        override fun setSyncChannelsEnabled(enabled: Boolean) {
+            syncChannelsCalls += enabled
+            syncPreferences.value = syncPreferences.value.copy(syncChannels = enabled)
+        }
+
+        override fun setSyncRecentMessagesEnabled(enabled: Boolean) {
+            syncRecentMessagesCalls += enabled
+            syncPreferences.value = syncPreferences.value.copy(syncRecentMessages = enabled)
+        }
+
+        override fun setRecentMessageLimit(limit: RecentMessageLimit) {
+            messageLimitCalls += limit
+            syncPreferences.value = syncPreferences.value.copy(recentMessageLimit = limit)
+        }
+
+        override fun setSyncQuickRepliesEnabled(enabled: Boolean) {
+            syncQuickRepliesCalls += enabled
+            syncPreferences.value = syncPreferences.value.copy(syncQuickReplies = enabled)
+        }
+
+        override fun setSyncRadioStatusEnabled(enabled: Boolean) {
+            syncRadioStatusCalls += enabled
+            syncPreferences.value = syncPreferences.value.copy(syncRadioStatus = enabled)
+        }
+
+        override fun setHighContrastModeEnabled(enabled: Boolean) {
+            highContrastModeEnabled.value = enabled
         }
 
         override fun requestSync() {
             syncRequestCalls++
             syncRequestFailure?.let { throw it }
             syncRequest.value++
+        }
+
+        override suspend fun setLastSuccessfulSyncMillis(timestampMillis: Long) {
+            lastSuccessfulSyncMillis.value = timestampMillis
         }
     }
 }

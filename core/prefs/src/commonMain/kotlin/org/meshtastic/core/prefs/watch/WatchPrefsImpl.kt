@@ -14,52 +14,104 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@file:Suppress("TooManyFunctions")
+
 package org.meshtastic.core.prefs.watch
 
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 import org.meshtastic.core.di.CoroutineDispatchers
 import org.meshtastic.core.prefs.di.WatchDataStore
+import org.meshtastic.core.repository.RecentMessageLimit
 import org.meshtastic.core.repository.WatchPrefs
+import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.WearOperatingMode
 
 @Single
 class WatchPrefsImpl(private val dataStore: WatchDataStore, dispatchers: CoroutineDispatchers) : WatchPrefs {
     private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 
-    override val pushToWatchEnabled: StateFlow<Boolean> =
+    override val operatingMode: StateFlow<WearOperatingMode> =
         dataStore.data
-            .map { it[KEY_PUSH_TO_WATCH] ?: DEFAULT_PUSH_TO_WATCH_ENABLED }
-            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_PUSH_TO_WATCH_ENABLED)
+            .map { preferences -> parseOperatingMode(preferences[KEY_OPERATING_MODE]) }
+            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_OPERATING_MODE)
 
-    override fun setPushToWatchEnabled(enabled: Boolean) {
-        scope.launch { dataStore.edit { it[KEY_PUSH_TO_WATCH] = enabled } }
+    override fun setOperatingMode(mode: WearOperatingMode) {
+        scope.launch { dataStore.edit { it[KEY_OPERATING_MODE] = mode.name } }
     }
 
-    override val syncNodesEnabled: StateFlow<Boolean> =
+    override suspend fun readOperatingMode(): WearOperatingMode =
+        parseOperatingMode(dataStore.data.first()[KEY_OPERATING_MODE])
+
+    override suspend fun setOperatingModeAndWait(mode: WearOperatingMode) {
+        dataStore.edit { it[KEY_OPERATING_MODE] = mode.name }
+    }
+
+    override val watchConnectivityEnabled: StateFlow<Boolean> =
         dataStore.data
-            .map { it[KEY_SYNC_NODES] ?: DEFAULT_SYNC_NODES_ENABLED }
-            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_SYNC_NODES_ENABLED)
+            .map { it[KEY_WATCH_CONNECTIVITY] ?: DEFAULT_WATCH_CONNECTIVITY_ENABLED }
+            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_WATCH_CONNECTIVITY_ENABLED)
+
+    override fun setWatchConnectivityEnabled(enabled: Boolean) {
+        scope.launch { dataStore.edit { it[KEY_WATCH_CONNECTIVITY] = enabled } }
+    }
+
+    override val syncPreferences: StateFlow<WatchSyncPreferences> =
+        dataStore.data
+            .map { preferences ->
+                WatchSyncPreferences(
+                    syncNodes = preferences[KEY_SYNC_NODES] ?: DEFAULT_SYNC_PREFERENCES.syncNodes,
+                    syncChannels = preferences[KEY_SYNC_CHANNELS] ?: DEFAULT_SYNC_PREFERENCES.syncChannels,
+                    syncRecentMessages = preferences[KEY_SYNC_MESSAGES] ?: DEFAULT_SYNC_PREFERENCES.syncRecentMessages,
+                    recentMessageLimit = RecentMessageLimit.fromStoredValue(preferences[KEY_MESSAGE_LIMIT]),
+                    syncQuickReplies = preferences[KEY_SYNC_QUICK_REPLIES] ?: DEFAULT_SYNC_PREFERENCES.syncQuickReplies,
+                    syncRadioStatus = preferences[KEY_SYNC_RADIO_STATUS] ?: DEFAULT_SYNC_PREFERENCES.syncRadioStatus,
+                )
+            }
+            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_SYNC_PREFERENCES)
 
     override fun setSyncNodesEnabled(enabled: Boolean) {
         scope.launch { dataStore.edit { it[KEY_SYNC_NODES] = enabled } }
     }
 
-    override val syncMessagesEnabled: StateFlow<Boolean> =
-        dataStore.data
-            .map { it[KEY_SYNC_MESSAGES] ?: DEFAULT_SYNC_MESSAGES_ENABLED }
-            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_SYNC_MESSAGES_ENABLED)
+    override fun setSyncChannelsEnabled(enabled: Boolean) {
+        scope.launch { dataStore.edit { it[KEY_SYNC_CHANNELS] = enabled } }
+    }
 
-    override fun setSyncMessagesEnabled(enabled: Boolean) {
+    override fun setSyncRecentMessagesEnabled(enabled: Boolean) {
         scope.launch { dataStore.edit { it[KEY_SYNC_MESSAGES] = enabled } }
+    }
+
+    override fun setRecentMessageLimit(limit: RecentMessageLimit) {
+        scope.launch { dataStore.edit { it[KEY_MESSAGE_LIMIT] = limit.count.toString() } }
+    }
+
+    override fun setSyncQuickRepliesEnabled(enabled: Boolean) {
+        scope.launch { dataStore.edit { it[KEY_SYNC_QUICK_REPLIES] = enabled } }
+    }
+
+    override fun setSyncRadioStatusEnabled(enabled: Boolean) {
+        scope.launch { dataStore.edit { it[KEY_SYNC_RADIO_STATUS] = enabled } }
+    }
+
+    override val highContrastModeEnabled: StateFlow<Boolean> =
+        dataStore.data
+            .map { it[KEY_HIGH_CONTRAST_MODE] ?: DEFAULT_HIGH_CONTRAST_MODE_ENABLED }
+            .stateIn(scope, SharingStarted.Eagerly, DEFAULT_HIGH_CONTRAST_MODE_ENABLED)
+
+    override fun setHighContrastModeEnabled(enabled: Boolean) {
+        scope.launch { dataStore.edit { it[KEY_HIGH_CONTRAST_MODE] = enabled } }
     }
 
     override val syncRequest: StateFlow<Long> =
@@ -75,15 +127,35 @@ class WatchPrefsImpl(private val dataStore: WatchDataStore, dispatchers: Corouti
         }
     }
 
+    override val lastSuccessfulSyncMillis: StateFlow<Long?> =
+        dataStore.data.map { it[KEY_LAST_SUCCESSFUL_SYNC] }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    override suspend fun setLastSuccessfulSyncMillis(timestampMillis: Long) {
+        dataStore.edit { it[KEY_LAST_SUCCESSFUL_SYNC] = timestampMillis }
+    }
+
     companion object {
-        const val DEFAULT_PUSH_TO_WATCH_ENABLED = true
-        const val DEFAULT_SYNC_NODES_ENABLED = true
-        const val DEFAULT_SYNC_MESSAGES_ENABLED = true
+        internal val DEFAULT_OPERATING_MODE = WearOperatingMode.COMPANION
+        const val DEFAULT_WATCH_CONNECTIVITY_ENABLED = true
+        internal val DEFAULT_SYNC_PREFERENCES = WatchSyncPreferences()
+        const val DEFAULT_HIGH_CONTRAST_MODE_ENABLED = false
         const val INITIAL_SYNC_REQUEST = 0L
 
-        internal val KEY_PUSH_TO_WATCH = booleanPreferencesKey("watch_push_enabled")
+        internal val KEY_OPERATING_MODE = stringPreferencesKey("wear_operating_mode")
+
+        // Keep the existing key so users retain their preference after the setting becomes a connectivity control.
+        internal val KEY_WATCH_CONNECTIVITY = booleanPreferencesKey("watch_push_enabled")
         internal val KEY_SYNC_NODES = booleanPreferencesKey("watch_sync_nodes")
+        internal val KEY_SYNC_CHANNELS = booleanPreferencesKey("watch_sync_channels")
         internal val KEY_SYNC_MESSAGES = booleanPreferencesKey("watch_sync_messages")
+        internal val KEY_MESSAGE_LIMIT = stringPreferencesKey("watch_message_limit")
+        internal val KEY_SYNC_QUICK_REPLIES = booleanPreferencesKey("watch_sync_quick_replies")
+        internal val KEY_SYNC_RADIO_STATUS = booleanPreferencesKey("watch_sync_radio_status")
+        internal val KEY_HIGH_CONTRAST_MODE = booleanPreferencesKey("watch_high_contrast_mode")
         internal val KEY_SYNC_REQUEST = longPreferencesKey("watch_sync_request")
+        internal val KEY_LAST_SUCCESSFUL_SYNC = longPreferencesKey("watch_last_successful_sync")
+
+        internal fun parseOperatingMode(storedValue: String?): WearOperatingMode =
+            WearOperatingMode.entries.firstOrNull { it.name == storedValue } ?: DEFAULT_OPERATING_MODE
     }
 }

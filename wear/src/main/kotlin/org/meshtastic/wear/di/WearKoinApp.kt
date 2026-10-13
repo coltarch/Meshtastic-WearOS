@@ -17,6 +17,27 @@
 package org.meshtastic.wear.di
 
 import org.koin.core.annotation.KoinApplication
+import org.koin.core.module.Module
+import org.meshtastic.core.common.di.CoreCommonModule
+import org.meshtastic.core.di.di.CoreDiModule
+import org.meshtastic.core.prefs.di.CorePrefsAndroidModule
+import org.meshtastic.core.prefs.di.CorePrefsModule
+import org.meshtastic.core.repository.WearOperatingMode
 
-@KoinApplication(modules = [WearKoinModule::class])
+@KoinApplication(
+    modules =
+    [
+        WearCommonModule::class,
+        CoreCommonModule::class,
+        CoreDiModule::class,
+        CorePrefsModule::class,
+        CorePrefsAndroidModule::class,
+    ],
+)
 object WearKoinApp
+
+/** Returns the one mode-specific graph selected before the application begins resolving screen dependencies. */
+internal fun wearModeModule(mode: WearOperatingMode): Module = when (mode) {
+    WearOperatingMode.COMPANION -> WearCompanionModule().module()
+    WearOperatingMode.STANDALONE_RADIO -> WearStandaloneRadioModule().module()
+}

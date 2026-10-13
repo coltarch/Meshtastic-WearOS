@@ -16,29 +16,68 @@
  */
 package org.meshtastic.core.testing
 
+import org.meshtastic.core.repository.RecentMessageLimit
 import org.meshtastic.core.repository.WatchPrefs
+import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.WearOperatingMode
 
 class FakeWatchPrefs :
     BaseFake(),
     WatchPrefs {
-    override val pushToWatchEnabled = mutableStateFlow(true)
-    override val syncNodesEnabled = mutableStateFlow(true)
-    override val syncMessagesEnabled = mutableStateFlow(true)
+    override val operatingMode = mutableStateFlow(WearOperatingMode.COMPANION)
+    override val watchConnectivityEnabled = mutableStateFlow(true)
+    override val syncPreferences = mutableStateFlow(WatchSyncPreferences())
+    override val highContrastModeEnabled = mutableStateFlow(false)
     override val syncRequest = mutableStateFlow(0L)
+    override val lastSuccessfulSyncMillis = mutableStateFlow<Long?>(null)
 
-    override fun setPushToWatchEnabled(enabled: Boolean) {
-        pushToWatchEnabled.value = enabled
+    override fun setOperatingMode(mode: WearOperatingMode) {
+        operatingMode.value = mode
+    }
+
+    override suspend fun readOperatingMode(): WearOperatingMode = operatingMode.value
+
+    override suspend fun setOperatingModeAndWait(mode: WearOperatingMode) {
+        operatingMode.value = mode
+    }
+
+    override fun setWatchConnectivityEnabled(enabled: Boolean) {
+        watchConnectivityEnabled.value = enabled
     }
 
     override fun setSyncNodesEnabled(enabled: Boolean) {
-        syncNodesEnabled.value = enabled
+        syncPreferences.value = syncPreferences.value.copy(syncNodes = enabled)
     }
 
-    override fun setSyncMessagesEnabled(enabled: Boolean) {
-        syncMessagesEnabled.value = enabled
+    override fun setSyncChannelsEnabled(enabled: Boolean) {
+        syncPreferences.value = syncPreferences.value.copy(syncChannels = enabled)
+    }
+
+    override fun setSyncRecentMessagesEnabled(enabled: Boolean) {
+        syncPreferences.value = syncPreferences.value.copy(syncRecentMessages = enabled)
+    }
+
+    override fun setRecentMessageLimit(limit: RecentMessageLimit) {
+        syncPreferences.value = syncPreferences.value.copy(recentMessageLimit = limit)
+    }
+
+    override fun setSyncQuickRepliesEnabled(enabled: Boolean) {
+        syncPreferences.value = syncPreferences.value.copy(syncQuickReplies = enabled)
+    }
+
+    override fun setSyncRadioStatusEnabled(enabled: Boolean) {
+        syncPreferences.value = syncPreferences.value.copy(syncRadioStatus = enabled)
+    }
+
+    override fun setHighContrastModeEnabled(enabled: Boolean) {
+        highContrastModeEnabled.value = enabled
     }
 
     override fun requestSync() {
         syncRequest.value++
+    }
+
+    override suspend fun setLastSuccessfulSyncMillis(timestampMillis: Long) {
+        lastSuccessfulSyncMillis.value = timestampMillis
     }
 }

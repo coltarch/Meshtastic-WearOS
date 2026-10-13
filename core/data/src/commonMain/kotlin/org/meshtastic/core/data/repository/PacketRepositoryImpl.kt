@@ -217,6 +217,16 @@ class PacketRepositoryImpl(private val dbManager: DatabaseProvider, private val 
         }
     }
 
+    override suspend fun getRecentMessages(
+        limit: Int,
+        getNode: suspend (String?) -> Node,
+    ): Flow<List<Pair<String, Message>>> = withContext(dispatchers.io) {
+        val cachedGetNode = memoize(getNode)
+        dbManager.currentDb.value.packetDao().getRecentMessages(limit).mapLatest { packets ->
+            packets.map { it.packet.contact_key to it.toMessage(cachedGetNode) }
+        }
+    }
+
     override fun getMessagesFromPaged(contact: String, getNode: suspend (String?) -> Node): Flow<PagingData<Message>> =
         Pager(
             config =

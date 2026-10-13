@@ -35,6 +35,7 @@ import org.junit.runner.RunWith
 import org.meshtastic.core.navigation.MapRoute
 import org.meshtastic.core.navigation.NodesRoute
 import org.meshtastic.core.navigation.SettingsRoute
+import org.meshtastic.core.repository.WatchSyncStateHolder
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.getString
 import org.meshtastic.core.resources.watch_settings_title
@@ -91,7 +92,7 @@ class NavigationAssemblyTest {
         setContent {
             AppTheme {
                 val backStack = rememberNavBackStack(SettingsRoute.Watch)
-                val viewModel = remember { WatchViewModel(FakeWatchPrefs()) }
+                val viewModel = remember { WatchViewModel(FakeWatchPrefs(), WatchSyncStateHolder()) }
                 MeshtasticNavDisplay(
                     backStack = backStack,
                     entryProvider =

@@ -60,9 +60,12 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.input.RemoteInputIntentHelper
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.meshtastic.core.model.MessageStatus
 import org.meshtastic.core.model.WearableMessage
+import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.wear_no_messages
 import org.meshtastic.core.ui.icon.Acknowledged
 import org.meshtastic.core.ui.icon.CloudUpload
 import org.meshtastic.core.ui.icon.MeshtasticIcons
@@ -70,6 +73,8 @@ import org.meshtastic.core.ui.icon.MessageEnroute
 import org.meshtastic.core.ui.icon.MessageError
 import org.meshtastic.core.ui.icon.MqttDelivered
 import org.meshtastic.core.ui.icon.Warning
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.PulsingDot
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,10 +83,15 @@ import java.util.Locale
 @Composable
 fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val syncedQuickReplies by viewModel.quickReplies.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val listState = rememberTransformingLazyColumnState()
 
     val chatMessages = messages.filter { it.contactKey == contactKey }.sortedByDescending { it.timestamp }
     val chatName = chatMessages.firstOrNull { !it.isMe }?.senderName ?: chatMessages.firstOrNull()?.senderName ?: "Chat"
+    val validConversation = chatMessages.isNotEmpty() || channels.any { it.contactKey == contactKey }
+    val canSend = validConversation && syncState == WearCompanionSyncState.Ready
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -101,30 +111,40 @@ fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
             contentPadding = padding,
             modifier = Modifier.fillMaxSize().background(COLOR_BG_DEEP),
         ) {
-            item { ChatHeader(chatName = chatName) }
+            item { ChatHeader(chatName = chatName, syncState = syncState) }
+
+            if (syncState != WearCompanionSyncState.Ready) {
+                item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
+            }
 
             items(chatMessages.reversed()) { msg -> MessageBubble(msg) }
 
-            item { ChatDivider() }
-
-            item {
-                val lastMsgText = chatMessages.lastOrNull { !it.isMe }?.text?.lowercase() ?: ""
-                val quickReplies =
-                    when {
-                        lastMsgText.contains("?") -> listOf("Yes", "No", "Maybe")
-                        lastMsgText.contains("where") -> listOf("On my way!", "At home", "ETA?")
-                        lastMsgText.contains("when") -> listOf("Now", "In 10m", "Later")
-                        else -> listOf("On it!", "OK", "Thanks!")
-                    }
-                QuickReplySection(replies = quickReplies, onReply = { viewModel.sendMessage(contactKey, it) })
+            if (chatMessages.isEmpty() && syncState == WearCompanionSyncState.Ready) {
+                item {
+                    Text(
+                        text = stringResource(Res.string.wear_no_messages),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    )
+                }
             }
 
-            item {
-                ReplyActions(
-                    chatName = chatName,
-                    launcher = launcher,
-                    onOpenOnPhone = { viewModel.openOnPhone(contactKey) },
-                )
+            if (canSend) {
+                item { ChatDivider() }
+
+                item {
+                    val quickReplies = syncedQuickReplies.orEmpty()
+                    if (quickReplies.isNotEmpty()) {
+                        QuickReplySection(replies = quickReplies, onReply = { viewModel.sendMessage(contactKey, it) })
+                    }
+                }
+
+                item {
+                    ReplyActions(
+                        chatName = chatName,
+                        launcher = launcher,
+                        onOpenOnPhone = { viewModel.openOnPhone(contactKey) },
+                    )
+                }
             }
 
             item { Spacer(Modifier.height(16.dp)) }
@@ -133,12 +153,22 @@ fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
 }
 
 @Composable
-private fun ChatHeader(chatName: String) {
+private fun ChatHeader(chatName: String, syncState: WearCompanionSyncState) {
+    val statusColor =
+        when (syncState) {
+            WearCompanionSyncState.Ready -> COLOR_NEON_GREEN
+
+            WearCompanionSyncState.Loading,
+            WearCompanionSyncState.Retrying,
+            -> COLOR_AMBER
+
+            else -> COLOR_OFFLINE_GRAY
+        }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PulsingDot(color = COLOR_NEON_GREEN, sizeDp = 6)
+        PulsingDot(color = statusColor, sizeDp = 6)
         Spacer(Modifier.width(5.dp))
         Text(
             text = chatName,

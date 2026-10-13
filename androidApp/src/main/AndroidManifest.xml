@@ -327,6 +327,7 @@
                 <data android:pathPrefix="/request_sync" />
                 <data android:pathPrefix="/send_message" />
                 <data android:pathPrefix="/open_on_phone" />
+                <data android:pathPrefix="/open_node_on_phone" />
             </intent-filter>
         </service>
 

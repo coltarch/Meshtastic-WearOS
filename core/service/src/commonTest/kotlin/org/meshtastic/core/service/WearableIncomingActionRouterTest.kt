@@ -19,6 +19,7 @@ package org.meshtastic.core.service
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.meshtastic.core.model.NodeAddress
 import org.meshtastic.core.model.WearableReply
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -44,6 +45,18 @@ class WearableIncomingActionRouterTest {
     }
 
     @Test
+    fun `send message routes PKI direct reply through PKI contact key`() {
+        val payload =
+            Json.encodeToString(
+                WearableReply(address = "!a1b2c3d4", channelIndex = NodeAddress.PKC_CHANNEL_INDEX, text = "hello"),
+            )
+
+        val action = router.route("/send_message", payload.encodeToByteArray(), "wear-node")
+
+        assertEquals(WearableIncomingAction.SendMessage(text = "hello", contactKey = "8!a1b2c3d4"), action)
+    }
+
+    @Test
     fun `send message creates channel contact key for broadcast reply`() {
         val payload = Json.encodeToString(WearableReply(address = null, channelIndex = 2, text = "hello"))
 
@@ -60,12 +73,22 @@ class WearableIncomingActionRouterTest {
     }
 
     @Test
+    fun `open node on phone routes node number`() {
+        val action = router.route("/open_node_on_phone", "305419896".encodeToByteArray(), "wear-node")
+
+        assertEquals(WearableIncomingAction.OpenNode(305419896), action)
+    }
+
+    @Test
     fun `malformed payloads do not produce executable actions`() {
         assertIs<WearableIncomingAction.Malformed>(
             router.route("/send_message", "not-json".encodeToByteArray(), "wear-node"),
         )
         assertIs<WearableIncomingAction.Malformed>(
             router.route("/open_on_phone", byteArrayOf(0xC3.toByte()), "wear-node"),
+        )
+        assertIs<WearableIncomingAction.Malformed>(
+            router.route("/open_node_on_phone", "not-a-node".encodeToByteArray(), "wear-node"),
         )
     }
 
@@ -82,6 +105,7 @@ class WearableIncomingActionRouterTest {
                 requestSync = { requestedNode = it },
                 sendMessage = { _, _ -> error("unexpected send") },
                 openConversation = { error("unexpected open") },
+                openNode = { error("unexpected node") },
             )
 
         handler.handle(WearableIncomingAction.RequestSync("wear-node"))
@@ -97,6 +121,7 @@ class WearableIncomingActionRouterTest {
                 requestSync = { error("unexpected sync") },
                 sendMessage = { text, contactKey -> sent = text to contactKey },
                 openConversation = { error("unexpected open") },
+                openNode = { error("unexpected node") },
             )
 
         handler.handle(WearableIncomingAction.SendMessage("hello", "2^all"))

@@ -17,12 +17,20 @@
 package org.meshtastic.wear.presentation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.StateFlow
-import org.koin.core.annotation.KoinViewModel
+import kotlinx.coroutines.launch
 import org.meshtastic.core.model.WearableChannel
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.data.WearDataLayerClient
 import org.meshtastic.wear.presentation.model.WearableChannelRepository
 
-@KoinViewModel
-class ChannelsViewModel(repository: WearableChannelRepository) : ViewModel() {
+class ChannelsViewModel(repository: WearableChannelRepository, private val dataLayerClient: WearDataLayerClient) :
+    ViewModel() {
     val channels: StateFlow<List<WearableChannel>> = repository.syncedChannels
+    val syncState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
+
+    fun retrySync() {
+        viewModelScope.launch { dataLayerClient.synchronize() }
+    }
 }

@@ -18,23 +18,52 @@
 
 package org.meshtastic.wear.presentation
 
+import android.content.Intent
 import android.os.Bundle
+import android.os.Process
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.HorizontalPageIndicator
 import androidx.wear.compose.material3.HorizontalPagerScaffold
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import org.meshtastic.core.repository.WearOperatingMode
+import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.error
+import org.meshtastic.core.resources.retry
+import org.meshtastic.wear.di.WearStartupState
+import org.meshtastic.wear.di.WearStartupStatus
 import org.meshtastic.wear.presentation.theme.MeshWatchTheme
+import org.meshtastic.wear.standalone.StandaloneRadioScreen
+
+private const val MAIN_PAGER_ROUTE = "main_pager"
+private const val NODE_DETAILS_ROUTE = "node_detail/{nodeNum}"
+private const val COMPANION_PAGE_COUNT = 3
+private const val STANDALONE_PAGE_COUNT = 2
+internal const val NODE_DETAILS_UNAVAILABLE_ROUTE = "node_detail/unavailable"
+
+internal fun nodeDetailsRoute(nodeNum: Int): String = "node_detail/$nodeNum"
 
 // ─────────────────────────────────────────────────────────────
 //  Activity
@@ -44,42 +73,105 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberSwipeDismissableNavController()
+            val startupState: WearStartupState = koinInject()
+            val startupStatus by startupState.status.collectAsStateWithLifecycle()
 
             MeshWatchTheme {
                 AppScaffold {
-                    SwipeDismissableNavHost(navController = navController, startDestination = "main_pager") {
-                        composable("main_pager") {
-                            MainPagerScreen(
-                                onNavigateToChats = { navController.navigate("chats_menu") },
-                                onNavigateToDMs = { navController.navigate("dm_list") },
-                                onThreadSelect = { contactKey -> navController.navigate("chat_view/$contactKey") },
+                    when (val status = startupStatus) {
+                        WearStartupStatus.Loading -> WearStartupLoading()
+
+                        WearStartupStatus.Failed -> WearStartupFailure(onRetry = ::restartApp)
+
+                        is WearStartupStatus.Ready ->
+                            WearNavigationHost(
+                                navController = navController,
+                                mainPagerContent = {
+                                    MainPagerScreen(
+                                        onNavigateToChats = { navController.navigate("chats_menu") },
+                                        onNavigateToDMs = { navController.navigate("dm_list") },
+                                        onThreadSelect = { contactKey ->
+                                            navController.navigate("chat_view/$contactKey")
+                                        },
+                                        onNodeSelect = { nodeNum -> navController.navigate(nodeDetailsRoute(nodeNum)) },
+                                        onRestartApp = ::restartApp,
+                                        operatingMode = status.mode,
+                                    )
+                                },
+                                nodeDetailsContent = { nodeNum ->
+                                    val nodeDetailsViewModel: NodeDetailsViewModel = koinViewModel()
+                                    NodeDetailsScreen(
+                                        nodeNum = nodeNum,
+                                        onOpenOnPhone = nodeDetailsViewModel::openOnPhone,
+                                    )
+                                },
                             )
-                        }
-                        composable("chats_menu") {
-                            ChatsMenuScreen(
-                                onChatSelect = { contactKey -> navController.navigate("chat_view/$contactKey") },
-                            )
-                        }
-                        composable("dm_list") {
-                            DMListScreen(onDMSelect = { contactKey -> navController.navigate("chat_view/$contactKey") })
-                        }
-                        composable("chat_view/{contactKey}") { backStackEntry ->
-                            val contactKey = backStackEntry.arguments?.getString("contactKey") ?: ""
-                            ChatScreen(contactKey)
-                        }
                     }
                 }
             }
         }
     }
+
+    private fun restartApp() {
+        startActivity(
+            Intent(this, RestartActivity::class.java).putExtra(RestartActivity.EXTRA_PROCESS_ID, Process.myPid()),
+        )
+    }
+}
+
+@Composable
+private fun WearStartupLoading() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+}
+
+@Composable
+private fun WearStartupFailure(onRetry: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = stringResource(Res.string.error), color = MaterialTheme.colorScheme.error)
+            Button(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+        }
+    }
+}
+
+@Composable
+internal fun WearNavigationHost(
+    navController: NavHostController,
+    mainPagerContent: @Composable () -> Unit,
+    nodeDetailsContent: @Composable (Int?) -> Unit,
+) {
+    SwipeDismissableNavHost(navController = navController, startDestination = MAIN_PAGER_ROUTE) {
+        composable(MAIN_PAGER_ROUTE) { mainPagerContent() }
+        composable("chats_menu") {
+            ChatsMenuScreen(onChatSelect = { contactKey -> navController.navigate("chat_view/$contactKey") })
+        }
+        composable("dm_list") {
+            DMListScreen(onDMSelect = { contactKey -> navController.navigate("chat_view/$contactKey") })
+        }
+        composable("chat_view/{contactKey}") { backStackEntry ->
+            val contactKey = backStackEntry.arguments?.getString("contactKey") ?: ""
+            ChatScreen(contactKey)
+        }
+        composable(NODE_DETAILS_ROUTE) { backStackEntry ->
+            nodeDetailsContent(backStackEntry.arguments?.getString("nodeNum")?.toIntOrNull())
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Root pager — swipe left: Nodes → Messages → Settings
+//  Root pager — Companion: Nodes → Messages → Settings; Standalone: Radio → Settings
 // ─────────────────────────────────────────────────────────────
 @Composable
-fun MainPagerScreen(onNavigateToChats: () -> Unit, onNavigateToDMs: () -> Unit, onThreadSelect: (String) -> Unit) {
-    val pagerState = rememberPagerState(pageCount = { 3 })
+fun MainPagerScreen(
+    onNavigateToChats: () -> Unit,
+    onNavigateToDMs: () -> Unit,
+    onThreadSelect: (String) -> Unit,
+    onNodeSelect: (Int) -> Unit,
+    onRestartApp: () -> Unit,
+    operatingMode: WearOperatingMode,
+) {
+    val pageCount = if (operatingMode == WearOperatingMode.COMPANION) COMPANION_PAGE_COUNT else STANDALONE_PAGE_COUNT
+    val pagerState = rememberPagerState(pageCount = { pageCount })
     HorizontalPagerScaffold(
         pagerState = pagerState,
         pageIndicator = {
@@ -87,10 +179,19 @@ fun MainPagerScreen(onNavigateToChats: () -> Unit, onNavigateToDMs: () -> Unit, 
         },
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            when (page) {
-                0 -> NodesScreen()
-                1 -> MessagesRootScreen(onNavigateToChats, onNavigateToDMs, onThreadSelect)
-                2 -> SettingsScreen()
+            when (operatingMode) {
+                WearOperatingMode.COMPANION ->
+                    when (page) {
+                        0 -> NodesScreen(onNodeSelect = onNodeSelect)
+                        1 -> MessagesRootScreen(onNavigateToChats, onNavigateToDMs, onThreadSelect)
+                        2 -> SettingsScreen(onRestartApp = onRestartApp)
+                    }
+
+                WearOperatingMode.STANDALONE_RADIO ->
+                    when (page) {
+                        0 -> StandaloneRadioScreen()
+                        1 -> SettingsScreen(onRestartApp = onRestartApp)
+                    }
             }
         }
     }

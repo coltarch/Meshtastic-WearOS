@@ -49,8 +49,16 @@ import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.meshtastic.core.model.WearableMessage
+import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.wear_no_channels
+import org.meshtastic.core.resources.wear_no_channels_description
+import org.meshtastic.core.resources.wear_no_messages
+import org.meshtastic.core.resources.wear_sync_now
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.SectionHeader
 import org.meshtastic.wear.presentation.components.UnreadBadge
 
@@ -62,6 +70,8 @@ fun MessagesRootScreen(
     viewModel: MessagesViewModel = koinViewModel(),
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val listState = rememberTransformingLazyColumnState()
 
     val threads =
@@ -77,12 +87,17 @@ fun MessagesRootScreen(
         ) {
             item { SectionHeader("MESSAGES") }
 
+            if (syncState != WearCompanionSyncState.Ready) {
+                item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
+            }
+
             item {
                 ConvTile(
                     icon = "DMS",
                     title = "Private Messages",
                     subtitle = "Direct chat with nodes",
                     unread = 0,
+                    enabled = messages.any { it.address != null },
                     onClick = onDMsClick,
                 )
             }
@@ -91,7 +106,12 @@ fun MessagesRootScreen(
                 ConvTile(
                     icon = "CHATS",
                     title = "Channels",
-                    subtitle = "Public & Private mesh groups",
+                    subtitle =
+                    if (channels.isEmpty() && syncState == WearCompanionSyncState.Ready) {
+                        stringResource(Res.string.wear_no_channels)
+                    } else {
+                        "Public & Private mesh groups"
+                    },
                     unread = 0,
                     onClick = onChatsClick,
                 )
@@ -99,10 +119,14 @@ fun MessagesRootScreen(
 
             item { SectionHeader("RECENT ACTIVITY") }
 
-            if (threads.isEmpty()) {
+            if (threads.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        Text("No recent activity", fontSize = 11.sp, color = COLOR_TEXT_SECONDARY)
+                        Text(
+                            stringResource(Res.string.wear_no_messages),
+                            fontSize = 11.sp,
+                            color = COLOR_TEXT_SECONDARY,
+                        )
                     }
                 }
             } else {
@@ -115,9 +139,10 @@ fun MessagesRootScreen(
 }
 
 @Composable
-fun ConvTile(icon: String, title: String, subtitle: String, unread: Int, onClick: () -> Unit) {
+fun ConvTile(icon: String, title: String, subtitle: String, unread: Int, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(containerColor = COLOR_SURFACE2),
     ) {
@@ -143,6 +168,7 @@ fun ConvTile(icon: String, title: String, subtitle: String, unread: Int, onClick
 @Composable
 fun ChatsMenuScreen(onChatSelect: (String) -> Unit, viewModel: ChannelsViewModel = koinViewModel()) {
     val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val listState = rememberTransformingLazyColumnState()
     ScreenScaffold(scrollState = listState) { padding ->
         TransformingLazyColumn(
@@ -151,11 +177,16 @@ fun ChatsMenuScreen(onChatSelect: (String) -> Unit, viewModel: ChannelsViewModel
             modifier = Modifier.fillMaxSize().background(COLOR_BG_DEEP),
         ) {
             item { SectionHeader("CHANNELS") }
-            if (channels.isEmpty()) {
+            if (syncState != WearCompanionSyncState.Ready) {
+                item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
+            }
+            if (channels.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        Text("No channels synced", fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
-                    }
+                    EmptySynchronizedCollection(
+                        title = stringResource(Res.string.wear_no_channels),
+                        description = stringResource(Res.string.wear_no_channels_description),
+                        onRetry = viewModel::retrySync,
+                    )
                 }
             } else {
                 items(channels) { channel ->
@@ -176,6 +207,7 @@ fun ChatsMenuScreen(onChatSelect: (String) -> Unit, viewModel: ChannelsViewModel
 @Composable
 fun DMListScreen(onDMSelect: (String) -> Unit = {}, viewModel: MessagesViewModel = koinViewModel()) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val listState = rememberTransformingLazyColumnState()
 
     // Filter for DMs (address != null) and group by contactKey
@@ -191,10 +223,17 @@ fun DMListScreen(onDMSelect: (String) -> Unit = {}, viewModel: MessagesViewModel
             modifier = Modifier.fillMaxSize().background(COLOR_BG_DEEP),
         ) {
             item { SectionHeader("PRIVATE MESSAGES") }
-            if (threads.isEmpty()) {
+            if (syncState != WearCompanionSyncState.Ready) {
+                item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
+            }
+            if (threads.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
-                        Text("No messages yet", fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
+                        Text(
+                            stringResource(Res.string.wear_no_messages),
+                            fontSize = 12.sp,
+                            color = COLOR_TEXT_SECONDARY,
+                        )
                     }
                 }
             } else {
@@ -202,6 +241,20 @@ fun DMListScreen(onDMSelect: (String) -> Unit = {}, viewModel: MessagesViewModel
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
+    }
+}
+
+@Composable
+private fun EmptySynchronizedCollection(title: String, description: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text = title, fontSize = 12.sp, color = COLOR_TEXT_PRIMARY)
+        Spacer(Modifier.height(4.dp))
+        Text(text = description, fontSize = 10.sp, color = COLOR_TEXT_SECONDARY)
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.wear_sync_now)) }
     }
 }
 

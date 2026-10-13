@@ -22,7 +22,7 @@ navigationevent = "1.1.0"
 paging = "3.5.1"
 room = "3.0.3"
 koin = "4.2.2"
-koin-plugin = "1.1.0"
+koin-plugin = "1.2.1"
 wear-compose = "1.6.1"
 
 # Kotlin

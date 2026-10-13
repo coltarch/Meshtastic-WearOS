@@ -23,6 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,10 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,23 +58,32 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.koin.compose.viewmodel.koinViewModel
-import org.meshtastic.core.model.ConnectionState
 import org.meshtastic.core.model.WearableNode
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.ic_power
 import org.meshtastic.core.resources.ic_star
+import org.meshtastic.core.resources.wear_no_nodes
+import org.meshtastic.core.resources.wear_no_nodes_description
+import org.meshtastic.core.resources.wear_node_card_content_description
+import org.meshtastic.core.resources.wear_sync_now
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.MiniPill
 import org.meshtastic.wear.presentation.components.PulsingDot
 import org.meshtastic.wear.presentation.components.TabChip
 
 @Composable
-fun NodesScreen(viewModel: NodesViewModel = koinViewModel()) {
+fun NodesScreen(onNodeSelect: (Int) -> Unit, viewModel: NodesViewModel = koinViewModel()) {
     val allNodes by viewModel.nodes.collectAsStateWithLifecycle()
-    val radioState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     var showFavs by remember { mutableStateOf(false) }
 
     val displayed = if (showFavs) allNodes.filter { it.favorite } else allNodes
@@ -85,16 +99,26 @@ fun NodesScreen(viewModel: NodesViewModel = koinViewModel()) {
                 NodesHeader(
                     onlineCount = allNodes.count { it.online },
                     totalCount = allNodes.size,
-                    radioState = radioState,
+                    syncState = syncState,
                 )
             }
 
-            item { NodesTabSelection(showFavs = showFavs, onTabSelect = { showFavs = it }) }
+            if (syncState != WearCompanionSyncState.Ready) {
+                item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
+            }
 
-            if (displayed.isEmpty()) {
-                item { EmptyNodes(showFavs = showFavs) }
+            if (allNodes.isNotEmpty()) {
+                item { NodesTabSelection(showFavs = showFavs, onTabSelect = { showFavs = it }) }
+            }
+
+            if (allNodes.isEmpty() && syncState == WearCompanionSyncState.Ready) {
+                item { EmptyNodes(onRetry = viewModel::retrySync) }
+            } else if (displayed.isEmpty() && allNodes.isNotEmpty()) {
+                item { EmptyFavourites() }
             } else {
-                items(displayed.sortedByDescending { it.online }) { node -> NodeCard(node) }
+                items(displayed.sortedByDescending { it.online }) { node ->
+                    NodeCard(node = node, onNodeSelect = onNodeSelect)
+                }
             }
 
             item { Spacer(Modifier.height(16.dp)) }
@@ -103,16 +127,16 @@ fun NodesScreen(viewModel: NodesViewModel = koinViewModel()) {
 }
 
 @Composable
-private fun NodesHeader(onlineCount: Int, totalCount: Int, radioState: ConnectionState) {
+private fun NodesHeader(onlineCount: Int, totalCount: Int, syncState: WearCompanionSyncState) {
     val statusColor =
-        when (radioState) {
-            ConnectionState.Connected -> COLOR_NEON_GREEN
+        when (syncState) {
+            WearCompanionSyncState.Ready -> COLOR_NEON_GREEN
 
-            ConnectionState.Connecting -> COLOR_AMBER
+            WearCompanionSyncState.Loading,
+            WearCompanionSyncState.Retrying,
+            -> COLOR_AMBER
 
-            ConnectionState.Disconnected,
-            ConnectionState.DeviceSleep,
-            -> COLOR_OFFLINE_GRAY
+            else -> COLOR_OFFLINE_GRAY
         }
 
     Row(
@@ -151,34 +175,57 @@ private fun NodesTabSelection(showFavs: Boolean, onTabSelect: (Boolean) -> Unit)
 }
 
 @Composable
-private fun EmptyNodes(showFavs: Boolean) {
-    val message = if (showFavs) "No favourites yet" else "No nodes yet"
-    Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
-        Text(message, fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
+private fun EmptyNodes(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(Res.string.wear_no_nodes), fontSize = 12.sp, color = COLOR_TEXT_PRIMARY)
+        Spacer(Modifier.height(4.dp))
+        Text(stringResource(Res.string.wear_no_nodes_description), fontSize = 10.sp, color = COLOR_TEXT_SECONDARY)
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.wear_sync_now)) }
     }
 }
 
 @Composable
-fun NodeCard(node: WearableNode) {
+private fun EmptyFavourites() {
+    Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
+        Text("No favourites yet", fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
+    }
+}
+
+@Composable
+fun NodeCard(node: WearableNode, onNodeSelect: (Int) -> Unit) {
     val onlineColor = if (node.online) COLOR_NEON_GREEN else COLOR_OFFLINE_GRAY
+    val nodeDescription = stringResource(Res.string.wear_node_card_content_description, node.name)
 
-    Box(
+    Card(
+        onClick = { onNodeSelect(node.num) },
         modifier =
-        Modifier.fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 3.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(COLOR_SURFACE1)
-            .drawBehind { drawRect(color = onlineColor, size = Size(3.dp.toPx(), size.height)) }
-            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp).semantics {
+            contentDescription = nodeDescription
+            role = Role.Button
+        },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = COLOR_SURFACE1),
+        contentPadding = PaddingValues(0.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            NodeAvatar(node = node)
+        Box(
+            modifier =
+            Modifier.fillMaxWidth()
+                .drawBehind { drawRect(color = onlineColor, size = Size(3.dp.toPx(), size.height)) }
+                .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NodeAvatar(node = node)
 
-            Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(8.dp))
 
-            NodeInfo(node = node, modifier = Modifier.weight(1f))
+                NodeInfo(node = node, modifier = Modifier.weight(1f))
 
-            Canvas(modifier = Modifier.size(7.dp)) { drawCircle(color = onlineColor) }
+                Canvas(modifier = Modifier.size(7.dp)) { drawCircle(color = onlineColor) }
+            }
         }
     }
 }

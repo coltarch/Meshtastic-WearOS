@@ -14,201 +14,94 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("MagicNumber", "TooGenericExceptionCaught")
+@file:Suppress("MagicNumber")
 
 package org.meshtastic.wear.presentation
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import co.touchlab.kermit.Logger
-import com.google.android.gms.wearable.Wearable
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import org.koin.core.annotation.KoinViewModel
-import org.meshtastic.core.ble.BleDevice
-import org.meshtastic.core.ble.BleScanner
-import org.meshtastic.core.ble.BluetoothRepository
-import org.meshtastic.core.ble.BluetoothState
-import org.meshtastic.core.ble.MeshtasticBleDevice
-import org.meshtastic.core.model.ConnectionState
-import org.meshtastic.core.model.InterfaceId
-import org.meshtastic.core.model.RadioController
-import org.meshtastic.core.repository.RadioPrefs
-import org.meshtastic.core.repository.RadioTransportFactory
 import org.meshtastic.core.repository.WatchPrefs
-import kotlin.time.Duration.Companion.seconds
+import org.meshtastic.core.repository.WearOperatingMode
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.data.WearDataLayerClient
+import org.meshtastic.wear.di.WearStartupState
 
-sealed interface PhoneConnectionState {
-    data object Disconnected : PhoneConnectionState
+class SettingsViewModel(private val watchPrefs: WatchPrefs, private val startupState: WearStartupState) : ViewModel() {
+    private val mutableConfirmationMode = MutableStateFlow<WearOperatingMode?>(null)
+    private val activeMode = startupState.operatingMode.value
+    private val restartMode = startupState.restartMode
+    private val mutableConfiguredMode = MutableStateFlow(restartMode)
+    val confirmationMode: StateFlow<WearOperatingMode?> = mutableConfirmationMode.asStateFlow()
 
-    data object Scanning : PhoneConnectionState
+    val settingsState: StateFlow<WearSettingsUiState> =
+        mutableConfiguredMode
+            .map { configuredMode ->
+                WearSettingsUiState(
+                    configuredMode = configuredMode,
+                    activeMode = activeMode,
+                    restartRequired = configuredMode != restartMode,
+                )
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5000),
+                WearSettingsUiState(configuredMode = restartMode, activeMode = activeMode, restartRequired = false),
+            )
 
-    data class Connecting(val device: BleDevice) : PhoneConnectionState
-
-    data class Connected(val device: BleDevice) : PhoneConnectionState
-
-    data object NoPermissions : PhoneConnectionState
-
-    /** Indicates the phone is reachable via the Data Layer API. */
-    data object PhoneLinked : PhoneConnectionState
-}
-
-@KoinViewModel
-class SettingsViewModel(
-    private val bleScanner: BleScanner,
-    private val bluetoothRepository: BluetoothRepository,
-    private val radioController: RadioController,
-    private val radioPrefs: RadioPrefs,
-    private val transportFactory: RadioTransportFactory,
-    private val watchPrefs: WatchPrefs,
-    private val application: android.app.Application,
-) : ViewModel() {
-
-    private val isScanningState = MutableStateFlow(false)
-    private val isPhoneLinkedState = MutableStateFlow(false)
+    init {
+        viewModelScope.launch { mutableConfiguredMode.value = watchPrefs.readOperatingMode() }
+    }
 
     val highContrastModeEnabled = watchPrefs.highContrastModeEnabled
+
+    val standaloneSupported: Boolean
+        get() = startupState.standaloneSupported
 
     fun setHighContrastModeEnabled(enabled: Boolean) {
         watchPrefs.setHighContrastModeEnabled(enabled)
     }
 
-    val bluetoothState = bluetoothRepository.state
-
-    init {
-        checkPhoneLink()
+    fun requestOperatingMode(mode: WearOperatingMode) {
+        if (mode != mutableConfiguredMode.value) mutableConfirmationMode.value = mode
     }
 
-    private fun checkPhoneLink() {
+    fun cancelOperatingModeChange() {
+        mutableConfirmationMode.value = null
+    }
+
+    fun confirmOperatingModeChange() {
+        val mode = mutableConfirmationMode.value ?: return
         viewModelScope.launch {
-            try {
-                val nodes = Wearable.getNodeClient(application).connectedNodes.await()
-                isPhoneLinkedState.value = nodes.isNotEmpty()
-            } catch (e: Exception) {
-                Logger.e(e) { "Failed to check phone link" }
-            }
+            watchPrefs.setOperatingModeAndWait(mode)
+            mutableConfiguredMode.value = mode
+            mutableConfirmationMode.value = null
         }
     }
+}
 
-    val connectionState: StateFlow<PhoneConnectionState> =
-        combine(
-            isScanningState,
-            isPhoneLinkedState,
-            bluetoothState,
-            radioController.connectionState,
-            radioPrefs.devAddr,
-            radioPrefs.devName,
-        ) { args ->
-            val scanning = args[0] as Boolean
-            val linked = args[1] as Boolean
-            val btState = args[2] as BluetoothState
-            val radioState = args[3] as ConnectionState
-            val devAddr = args[4] as String?
-            val devName = args[5] as String?
+class CompanionConnectionViewModel(private val dataLayerClient: WearDataLayerClient) : ViewModel() {
+    val connectionState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
 
-            when {
-                linked -> PhoneConnectionState.PhoneLinked
-
-                !btState.hasPermissions -> PhoneConnectionState.NoPermissions
-
-                scanning -> PhoneConnectionState.Scanning
-
-                radioState is ConnectionState.Connected && devAddr != null -> {
-                    val device =
-                        MeshtasticBleDevice(
-                            address = devAddr.removePrefix(InterfaceId.BLUETOOTH.id.toString()),
-                            name = devName ?: "Phone",
-                        )
-                    PhoneConnectionState.Connected(device)
-                }
-
-                radioState is ConnectionState.Connecting && devAddr != null -> {
-                    val device =
-                        MeshtasticBleDevice(
-                            address = devAddr.removePrefix(InterfaceId.BLUETOOTH.id.toString()),
-                            name = devName ?: "Phone",
-                        )
-                    PhoneConnectionState.Connecting(device)
-                }
-
-                else -> PhoneConnectionState.Disconnected
-            }
-        }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PhoneConnectionState.Disconnected)
-
-    private val _discoveredDevices = MutableStateFlow<List<BleDevice>>(emptyList())
-    val discoveredDevices: StateFlow<List<BleDevice>> = _discoveredDevices.asStateFlow()
-
-    private var scanJob: Job? = null
-
-    fun startScan() {
-        if (!bluetoothState.value.hasPermissions) {
-            return
-        }
-        scanJob?.cancel()
-        _discoveredDevices.value = emptyList()
-        isScanningState.value = true
-        scanJob =
-            viewModelScope.launch {
-                try {
-                    // Scan for 30 seconds
-                    bleScanner.scan(30.seconds).collect { device ->
-                        _discoveredDevices.update { current ->
-                            if (current.any { it.address == device.address }) {
-                                current
-                            } else {
-                                current + device
-                            }
-                        }
-                    }
-                } finally {
-                    isScanningState.value = false
-                }
-            }
-    }
-
-    fun stopScan() {
-        scanJob?.cancel()
-        isScanningState.value = false
-    }
-
-    fun connectToDevice(device: BleDevice) {
-        Logger.i { "Connecting to device: ${device.name} (${device.address})" }
-        stopScan()
-        val address = transportFactory.toInterfaceAddress(InterfaceId.BLUETOOTH, device.address)
-        radioPrefs.setDevName(device.name)
-        radioController.setDeviceAddress(address)
-    }
-
-    fun disconnect() {
-        radioController.setDeviceAddress("")
-        radioPrefs.setDevAddr(null)
-        radioPrefs.setDevName(null)
+    fun refreshPhoneLink() {
+        viewModelScope.launch { dataLayerClient.synchronize() }
     }
 
     fun requestSync() {
-        viewModelScope.launch {
-            try {
-                val nodes = Wearable.getNodeClient(application).connectedNodes.await()
-                nodes.forEach { node ->
-                    Wearable.getMessageClient(application).sendMessage(node.id, "/request_sync", null).await()
-                }
-                Logger.d { "Sync request sent to ${nodes.size} nodes" }
-            } catch (e: Exception) {
-                Logger.e(e) { "Failed to send sync request" }
-            }
-        }
-    }
-
-    override fun onCleared() {
-        scanJob?.cancel()
+        refreshPhoneLink()
     }
 }
+
+@Immutable
+data class WearSettingsUiState(
+    val configuredMode: WearOperatingMode = WearOperatingMode.COMPANION,
+    val activeMode: WearOperatingMode = WearOperatingMode.COMPANION,
+    val restartRequired: Boolean = false,
+)

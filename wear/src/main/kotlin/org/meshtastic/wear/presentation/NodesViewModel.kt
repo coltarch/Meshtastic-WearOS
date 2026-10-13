@@ -17,16 +17,24 @@
 package org.meshtastic.wear.presentation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.StateFlow
-import org.koin.core.annotation.KoinViewModel
-import org.meshtastic.core.model.ConnectionState
-import org.meshtastic.core.model.RadioController
+import kotlinx.coroutines.launch
 import org.meshtastic.core.model.WearableNode
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.data.WearDataLayerClient
 import org.meshtastic.wear.presentation.model.WearableNodeRepository
 
-@KoinViewModel
-class NodesViewModel(repository: WearableNodeRepository, radioController: RadioController) : ViewModel() {
+class NodesViewModel(repository: WearableNodeRepository, private val dataLayerClient: WearDataLayerClient) :
+    ViewModel() {
     val nodes: StateFlow<List<WearableNode>> = repository.syncedNodes
+    val syncState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
 
-    val connectionState: StateFlow<ConnectionState> = radioController.connectionState
+    init {
+        retrySync()
+    }
+
+    fun retrySync() {
+        viewModelScope.launch { dataLayerClient.synchronize() }
+    }
 }

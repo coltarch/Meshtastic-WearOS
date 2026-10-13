@@ -28,6 +28,7 @@ internal enum class WearableFailureLog(val message: String, val isError: Boolean
     UnavailableCommand("Wearable command could not be completed"),
     FailedCommand("Wearable command failed"),
     OpenConversation("Unable to open wearable conversation"),
+    OpenNode("Unable to open wearable node"),
 }
 
 /** Logs failures without forwarding exception messages, causes, stack traces, or other runtime data. */

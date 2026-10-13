@@ -17,11 +17,19 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="org.meshtastic.wear">
 
     <uses-feature android:name="android.hardware.type.watch" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
@@ -58,6 +66,20 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="org.meshtastic.wear.presentation.RestartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:process=":restart"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <service
+            android:name="org.meshtastic.core.service.MeshService"
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
+
         <service
             android:name="org.meshtastic.wear.DataLayerListenerService"
             android:exported="true">
@@ -69,6 +91,8 @@
                 <data android:pathPrefix="/nodes" />
                 <data android:pathPrefix="/messages" />
                 <data android:pathPrefix="/channels" />
+                <data android:pathPrefix="/quick_replies" />
+                <data android:pathPrefix="/radio_status" />
             </intent-filter>
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
@@ -77,8 +101,26 @@
                 <data android:pathPrefix="/nodes" />
                 <data android:pathPrefix="/messages" />
                 <data android:pathPrefix="/channels" />
+                <data android:pathPrefix="/quick_replies" />
+                <data android:pathPrefix="/radio_status" />
+                <data android:pathPrefix="/clear_sync_category" />
+                <data android:pathPrefix="/sync_started" />
+                <data android:pathPrefix="/sync_completed" />
+                <data android:pathPrefix="/sync_failed" />
             </intent-filter>
         </service>
+
+        <!-- Workers are never automatic on Wear; prevent the library initializer from opening its database. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>

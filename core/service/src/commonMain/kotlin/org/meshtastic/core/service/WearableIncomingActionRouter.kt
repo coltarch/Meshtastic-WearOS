@@ -29,6 +29,8 @@ internal sealed interface WearableIncomingAction {
 
     data class OpenConversation(val contactKey: String) : WearableIncomingAction
 
+    data class OpenNode(val nodeNum: Int) : WearableIncomingAction
+
     data object Unknown : WearableIncomingAction
 
     data object Malformed : WearableIncomingAction
@@ -40,6 +42,7 @@ internal class WearableIncomingActionRouter(private val json: Json = Json { igno
         PATH_REQUEST_SYNC -> WearableIncomingAction.RequestSync(sourceNodeId)
         PATH_SEND_MESSAGE -> parseReply(data)
         PATH_OPEN_ON_PHONE -> parseConversation(data)
+        PATH_OPEN_NODE_ON_PHONE -> parseNode(data)
         else -> WearableIncomingAction.Unknown
     }
 
@@ -75,6 +78,11 @@ internal class WearableIncomingActionRouter(private val json: Json = Json { igno
                 onFailure = { WearableIncomingAction.Malformed },
             )
 
+    private fun parseNode(data: ByteArray): WearableIncomingAction = safeCatching {
+        data.decodeToString(throwOnInvalidSequence = true).toIntOrNull()?.let(WearableIncomingAction::OpenNode)
+    }
+        .getOrNull() ?: WearableIncomingAction.Malformed
+
     private fun String.isSupportedContactKey(): Boolean {
         if (isBlank() || length > MAX_CONTACT_KEY_LENGTH) return false
         val key = ContactKey(this)
@@ -93,6 +101,7 @@ internal class WearableIncomingActionRouter(private val json: Json = Json { igno
         const val PATH_REQUEST_SYNC = "/request_sync"
         const val PATH_SEND_MESSAGE = "/send_message"
         const val PATH_OPEN_ON_PHONE = "/open_on_phone"
+        const val PATH_OPEN_NODE_ON_PHONE = "/open_node_on_phone"
 
         private const val MAX_CONTACT_KEY_LENGTH = 16
     }
@@ -103,6 +112,7 @@ internal class WearableIncomingActionHandler(
     private val requestSync: (String) -> Unit,
     private val sendMessage: suspend (text: String, contactKey: String) -> Unit,
     private val openConversation: (String) -> Unit,
+    private val openNode: (Int) -> Unit,
 ) {
     suspend fun handle(action: WearableIncomingAction) {
         when (action) {
@@ -111,6 +121,8 @@ internal class WearableIncomingActionHandler(
             is WearableIncomingAction.SendMessage -> sendMessage(action.text, action.contactKey)
 
             is WearableIncomingAction.OpenConversation -> openConversation(action.contactKey)
+
+            is WearableIncomingAction.OpenNode -> openNode(action.nodeNum)
 
             WearableIncomingAction.Malformed,
             WearableIncomingAction.Unknown,

@@ -77,6 +77,8 @@ configure<ApplicationExtension> {
             isDebuggable = false
         }
     }
+
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
 androidComponents {
@@ -99,6 +101,7 @@ dependencies {
     implementation(projects.core.repository)
     implementation(projects.core.resources)
     implementation(projects.core.service)
+    implementation(projects.core.takserver)
     implementation(projects.core.ui)
 
     implementation(libs.androidx.activity.compose)
@@ -118,9 +121,23 @@ dependencies {
     implementation(libs.kermit)
     implementation(libs.koin.android)
     implementation(libs.koin.compose.viewmodel)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.client.logging)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.wearable)
     implementation(libs.usb.serial.android)
+
+    testImplementation(kotlin("test-junit"))
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.compose.multiplatform.ui.test)
+    testImplementation(libs.koin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testRuntimeOnly(libs.junit.vintage.engine)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

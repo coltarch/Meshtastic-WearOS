@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("ModifierMissing")
+@file:Suppress("ModifierMissing", "TooManyFunctions")
 
 package org.meshtastic.wear.presentation
 
@@ -35,30 +35,66 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
-import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SwitchButton
 import androidx.wear.compose.material3.SwitchButtonDefaults
 import androidx.wear.compose.material3.Text
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
-import org.meshtastic.core.ble.BleDevice
-import org.meshtastic.wear.presentation.components.PulsingDot
+import org.meshtastic.core.repository.WearOperatingMode
+import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.cancel
+import org.meshtastic.core.resources.companion_mode
+import org.meshtastic.core.resources.companion_mode_description
+import org.meshtastic.core.resources.experimental_badge
+import org.meshtastic.core.resources.operating_mode
+import org.meshtastic.core.resources.standalone_radio_battery_warning
+import org.meshtastic.core.resources.standalone_radio_experimental_description
+import org.meshtastic.core.resources.standalone_radio_mode
+import org.meshtastic.core.resources.standalone_radio_phone_sync_notice
+import org.meshtastic.core.resources.standalone_radio_unsupported
+import org.meshtastic.core.resources.watch_settings_title
+import org.meshtastic.core.resources.wear_mode_change_confirm
+import org.meshtastic.core.resources.wear_mode_change_restart
+import org.meshtastic.core.resources.wear_mode_restart_action
+import org.meshtastic.core.resources.wear_mode_restart_required
+import org.meshtastic.core.resources.wear_phone_connection
+import org.meshtastic.core.resources.wear_phone_linked
+import org.meshtastic.core.resources.wear_phone_linked_description
+import org.meshtastic.core.resources.wear_sync_now
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.SectionHeader
 
+internal const val STANDALONE_RADIO_SWITCH_TEST_TAG = "standalone_radio_switch"
+
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
-    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
-    val discoveredDevices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
+fun SettingsScreen(onRestartApp: () -> Unit, viewModel: SettingsViewModel = koinViewModel()) {
     val highContrastMode by viewModel.highContrastModeEnabled.collectAsStateWithLifecycle()
+    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    val confirmationMode by viewModel.confirmationMode.collectAsStateWithLifecycle()
+
+    if (confirmationMode != null) {
+        OperatingModeConfirmation(
+            mode = checkNotNull(confirmationMode),
+            onConfirm = viewModel::confirmOperatingModeChange,
+            onCancel = viewModel::cancelOperatingModeChange,
+        )
+        return
+    }
+
     val listState = rememberTransformingLazyColumnState()
 
     ScreenScaffold(scrollState = listState) { padding ->
@@ -67,49 +103,23 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
             contentPadding = padding,
             modifier = Modifier.fillMaxSize().background(COLOR_BG_DEEP),
         ) {
-            item { SectionHeader("SETTINGS") }
+            item { SectionHeader(stringResource(Res.string.watch_settings_title)) }
 
             item {
-                PhoneConnectionSection(
-                    state = connectionState,
-                    onPairClick = { viewModel.startScan() },
-                    onStopScanClick = { viewModel.stopScan() },
-                    onDisconnectClick = { viewModel.disconnect() },
+                OperatingModeSection(
+                    state = settingsState,
+                    standaloneSupported = viewModel.standaloneSupported,
+                    onModeRequest = viewModel::requestOperatingMode,
+                    onRestartApp = onRestartApp,
                 )
             }
 
-            if (connectionState is PhoneConnectionState.Scanning || discoveredDevices.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Discovered Devices",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = COLOR_TEXT_SECONDARY,
-                        modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 4.dp),
-                    )
-                }
-
-                if (discoveredDevices.isEmpty() && connectionState is PhoneConnectionState.Scanning) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("Searching...", fontSize = 11.sp, color = COLOR_TEXT_SECONDARY)
-                        }
-                    }
-                } else {
-                    items(discoveredDevices) { device ->
-                        DeviceItem(device = device, onClick = { viewModel.connectToDevice(device) })
-                    }
-                }
+            if (settingsState.activeMode == WearOperatingMode.COMPANION) {
+                item { CompanionConnectionSection() }
+                item { PhoneMenuSection() }
+                item { DeviceSection() }
+                item { CompanionMaintenanceSection() }
             }
-
-            item { PhoneMenuSection() }
-
-            item { DeviceSection() }
-
-            item { MaintenanceSection(onSyncClick = { viewModel.requestSync() }) }
 
             item {
                 DisplaySection(
@@ -124,144 +134,181 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
 }
 
 @Composable
-private fun DeviceItem(device: BleDevice, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = COLOR_SURFACE1),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)).background(COLOR_SURFACE2),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = (device.name ?: "Unknown").take(1).uppercase(),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = COLOR_TEAL,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = device.name ?: "Unknown Device",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = COLOR_TEXT_PRIMARY,
-                )
-                Text(text = device.address, fontSize = 8.sp, color = COLOR_TEXT_SECONDARY)
+private fun ExperimentalBadge() {
+    Text(
+        text = stringResource(Res.string.experimental_badge),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier =
+        Modifier.clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+internal fun OperatingModeSection(
+    state: WearSettingsUiState,
+    standaloneSupported: Boolean,
+    onModeRequest: (WearOperatingMode) -> Unit,
+    onRestartApp: () -> Unit,
+) {
+    val standaloneSummary = stringResource(Res.string.standalone_radio_experimental_description)
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
+        Text(
+            text = stringResource(Res.string.operating_mode),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(Res.string.companion_mode),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp),
+        )
+        Text(
+            text = stringResource(Res.string.companion_mode_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+        SwitchButton(
+            checked = state.configuredMode == WearOperatingMode.STANDALONE_RADIO,
+            onCheckedChange = { checked ->
+                onModeRequest(if (checked) WearOperatingMode.STANDALONE_RADIO else WearOperatingMode.COMPANION)
+            },
+            enabled = standaloneSupported || state.configuredMode == WearOperatingMode.STANDALONE_RADIO,
+            modifier =
+            Modifier.fillMaxWidth().testTag(STANDALONE_RADIO_SWITCH_TEST_TAG).semantics {
+                stateDescription = standaloneSummary
+            },
+            colors = SwitchButtonDefaults.switchButtonColors(),
+            label = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = stringResource(Res.string.standalone_radio_mode), modifier = Modifier.weight(1f))
+                    ExperimentalBadge()
+                }
+            },
+            secondaryLabel = {
+                Column {
+                    Text(text = standaloneSummary)
+                    if (!standaloneSupported) Text(text = stringResource(Res.string.standalone_radio_unsupported))
+                }
+            },
+        )
+        if (state.restartRequired) {
+            Text(
+                text = stringResource(Res.string.wear_mode_restart_required),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+            Button(onClick = onRestartApp, modifier = Modifier.fillMaxWidth()) {
+                Text(text = stringResource(Res.string.wear_mode_restart_action))
             }
         }
     }
 }
 
 @Composable
-private fun PhoneConnectionSection(
-    state: PhoneConnectionState,
-    onPairClick: () -> Unit,
-    onStopScanClick: () -> Unit,
-    onDisconnectClick: () -> Unit,
-) {
+private fun CompanionConnectionSection(viewModel: CompanionConnectionViewModel = koinViewModel()) {
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    PhoneConnectionSection(state = connectionState, onRefreshClick = viewModel::refreshPhoneLink)
+}
+
+@Composable
+private fun CompanionMaintenanceSection(viewModel: CompanionConnectionViewModel = koinViewModel()) {
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    MaintenanceSection(
+        syncing =
+        connectionState == WearCompanionSyncState.Loading || connectionState == WearCompanionSyncState.Retrying,
+        onSyncClick = viewModel::requestSync,
+    )
+}
+
+@Composable
+private fun OperatingModeConfirmation(mode: WearOperatingMode, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val listState = rememberTransformingLazyColumnState()
+    ScreenScaffold(scrollState = listState) { padding ->
+        TransformingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxSize()) {
+            item { SectionHeader(stringResource(Res.string.wear_mode_change_confirm)) }
+            item {
+                Text(
+                    text =
+                    stringResource(
+                        if (mode == WearOperatingMode.STANDALONE_RADIO) {
+                            Res.string.standalone_radio_mode
+                        } else {
+                            Res.string.companion_mode
+                        },
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            item {
+                Text(
+                    text = stringResource(Res.string.wear_mode_change_restart),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            if (mode == WearOperatingMode.STANDALONE_RADIO) {
+                item {
+                    Text(
+                        text = stringResource(Res.string.standalone_radio_battery_warning),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                item {
+                    Text(
+                        text = stringResource(Res.string.standalone_radio_phone_sync_notice),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            item {
+                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    Text(stringResource(Res.string.wear_mode_change_confirm))
+                }
+            }
+            item {
+                Button(onClick = onCancel, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    Text(stringResource(Res.string.cancel))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneConnectionSection(state: WearCompanionSyncState, onRefreshClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Text(
-            text = "Phone Connection",
+            text = stringResource(Res.string.wear_phone_connection),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             color = COLOR_TEXT_SECONDARY,
             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
         )
 
-        Button(
-            onClick = {
-                when (state) {
-                    PhoneConnectionState.Disconnected -> onPairClick()
-                    PhoneConnectionState.Scanning -> onStopScanClick()
-                    is PhoneConnectionState.Connected -> onDisconnectClick()
-                    else -> {}
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = getButtonColor(state)),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PhoneConnectionIcon(state)
-                Spacer(Modifier.width(10.dp))
-                PhoneConnectionTitles(state)
+        if (state == WearCompanionSyncState.Ready) {
+            Text(
+                text = stringResource(Res.string.wear_phone_linked),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+            Text(
+                text = stringResource(Res.string.wear_phone_linked_description),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+            Button(onClick = onRefreshClick, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(Res.string.wear_sync_now))
             }
+        } else {
+            CompanionSyncStatus(state = state, onRetry = onRefreshClick)
         }
-    }
-}
-
-@Composable
-private fun getButtonColor(state: PhoneConnectionState): Color = when (state) {
-    is PhoneConnectionState.Connected -> COLOR_TEAL_DIM
-    PhoneConnectionState.PhoneLinked -> COLOR_TEAL_DIM
-    is PhoneConnectionState.Connecting -> COLOR_SURFACE1
-    PhoneConnectionState.NoPermissions -> COLOR_ERROR_RED.copy(alpha = 0.2f)
-    else -> COLOR_SURFACE2
-}
-
-@Composable
-private fun PhoneConnectionIcon(state: PhoneConnectionState) {
-    Box(
-        modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(COLOR_TEAL_DIM),
-        contentAlignment = Alignment.Center,
-    ) {
-        when (state) {
-            PhoneConnectionState.Scanning,
-            is PhoneConnectionState.Connecting,
-            -> {
-                PulsingDot(color = COLOR_TEAL, sizeDp = 12)
-            }
-
-            is PhoneConnectionState.Connected -> {
-                Text("✓", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
-            }
-
-            PhoneConnectionState.PhoneLinked -> {
-                Text("🔗", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
-            }
-
-            PhoneConnectionState.NoPermissions -> {
-                Text("!", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = COLOR_ERROR_RED)
-            }
-
-            else -> {
-                Text("BT", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PhoneConnectionTitles(state: PhoneConnectionState) {
-    Column {
-        val title =
-            when (state) {
-                PhoneConnectionState.Disconnected -> "Pair Phone"
-                PhoneConnectionState.Scanning -> "Stop Scanning"
-                is PhoneConnectionState.Connecting -> "Connecting..."
-                is PhoneConnectionState.Connected -> state.device.name ?: "Connected"
-                PhoneConnectionState.NoPermissions -> "Missing Permissions"
-                PhoneConnectionState.PhoneLinked -> "Phone Linked"
-            }
-        val subtitle =
-            when (state) {
-                PhoneConnectionState.Disconnected -> "Connect via BLE"
-                PhoneConnectionState.Scanning -> "Searching for devices"
-                is PhoneConnectionState.Connecting -> state.device.address
-                is PhoneConnectionState.Connected -> "Active connection"
-                PhoneConnectionState.NoPermissions -> "Grant BT permissions"
-                PhoneConnectionState.PhoneLinked -> "Linked via Data Layer"
-            }
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (state == PhoneConnectionState.NoPermissions) COLOR_ERROR_RED else COLOR_TEXT_PRIMARY,
-        )
-        Text(text = subtitle, fontSize = 9.sp, color = COLOR_TEXT_SECONDARY)
     }
 }
 
@@ -377,7 +424,7 @@ private fun DisplaySection(highContrastMode: Boolean, onHighContrastModeChange: 
 }
 
 @Composable
-private fun MaintenanceSection(onSyncClick: () -> Unit) {
+private fun MaintenanceSection(syncing: Boolean, onSyncClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
         Text(
             text = "Maintenance",
@@ -389,6 +436,7 @@ private fun MaintenanceSection(onSyncClick: () -> Unit) {
 
         Button(
             onClick = onSyncClick,
+            enabled = !syncing,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = COLOR_SURFACE2),
         ) {
@@ -403,7 +451,7 @@ private fun MaintenanceSection(onSyncClick: () -> Unit) {
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "Force Sync",
+                        text = stringResource(Res.string.wear_sync_now),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = COLOR_TEXT_PRIMARY,

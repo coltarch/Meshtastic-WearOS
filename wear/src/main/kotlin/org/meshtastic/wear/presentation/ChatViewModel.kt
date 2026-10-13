@@ -18,62 +18,53 @@
 
 package org.meshtastic.wear.presentation
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
-import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.koin.core.annotation.KoinViewModel
-import org.meshtastic.core.model.MessageStatus
+import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
-import org.meshtastic.core.model.WearableReply
+import org.meshtastic.wear.data.WearCompanionSyncState
+import org.meshtastic.wear.data.WearDataLayerClient
+import org.meshtastic.wear.data.WearDataLayerPaths
+import org.meshtastic.wear.presentation.model.WearableChannelRepository
 import org.meshtastic.wear.presentation.model.WearableMessageRepository
+import org.meshtastic.wear.presentation.model.WearableQuickReplyRepository
 
-@KoinViewModel
-class ChatViewModel(private val repository: WearableMessageRepository, private val application: Application) :
-    ViewModel() {
-    private val messageClient by lazy { Wearable.getMessageClient(application) }
-    private val nodeClient by lazy { Wearable.getNodeClient(application) }
+class ChatViewModel(
+    repository: WearableMessageRepository,
+    channelRepository: WearableChannelRepository,
+    quickReplyRepository: WearableQuickReplyRepository,
+    private val dataLayerClient: WearDataLayerClient,
+) : ViewModel() {
     private val json = Json
+    private val replyFactory = WearableReplyFactory(repository)
 
     val messages: StateFlow<List<WearableMessage>> = repository.syncedMessages
+    val channels: StateFlow<List<WearableChannel>> = channelRepository.syncedChannels
+    val quickReplies: StateFlow<List<String>?> = quickReplyRepository.replies
+    val syncState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
+
+    fun retrySync() {
+        viewModelScope.launch { dataLayerClient.synchronize() }
+    }
 
     fun sendMessage(contactKey: String, text: String) {
-        val lastMsg = messages.value.firstOrNull { it.contactKey == contactKey }
-        val address = lastMsg?.address
-        val channelIndex = lastMsg?.channelIndex ?: 0
-
-        // Add to local history immediately for UI feedback
-        repository.addLocalMessage(
-            WearableMessage(
-                uuid = System.currentTimeMillis(),
-                contactKey = contactKey,
-                senderName = "You",
-                senderShortName = "YO",
-                text = text,
-                isMe = true,
-                timestamp = System.currentTimeMillis(),
-                status = MessageStatus.QUEUED,
-            ),
-        )
-
+        val reply = replyFactory.create(contactKey = contactKey, text = text)
         viewModelScope.launch {
             try {
-                val reply = WearableReply(address = address, channelIndex = channelIndex, text = text)
                 val replyJson = json.encodeToString(reply)
 
-                val nodes = nodeClient.connectedNodes.await()
-                nodes.forEach { node ->
-                    messageClient.sendMessage(node.id, "/send_message", replyJson.toByteArray()).await()
+                if (dataLayerClient.sendCommand(WearDataLayerPaths.SEND_MESSAGE, replyJson.encodeToByteArray())) {
+                    Logger.d { "Wear reply sent through the phone" }
+                } else {
+                    Logger.w { "Wear reply could not be sent through the phone" }
                 }
-                Logger.d { "Sent reply: $text to $contactKey" }
-            } catch (e: Exception) {
-                Logger.e(e) { "Failed to send message" }
+            } catch (_: Exception) {
+                Logger.w { "Wear reply could not be sent through the phone" }
             }
         }
     }
@@ -81,12 +72,12 @@ class ChatViewModel(private val repository: WearableMessageRepository, private v
     fun openOnPhone(contactKey: String) {
         viewModelScope.launch {
             try {
-                val nodes = nodeClient.connectedNodes.await()
-                nodes.forEach { node ->
-                    messageClient.sendMessage(node.id, "/open_on_phone", contactKey.toByteArray()).await()
-                }
-            } catch (e: Exception) {
-                Logger.e(e) { "Failed to trigger open on phone" }
+                dataLayerClient.sendCommand(
+                    WearDataLayerPaths.OPEN_CONVERSATION_ON_PHONE,
+                    contactKey.encodeToByteArray(),
+                )
+            } catch (_: Exception) {
+                Logger.w { "Conversation could not be opened on the phone" }
             }
         }
     }

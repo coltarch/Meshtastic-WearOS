@@ -17,7 +17,7 @@
 package org.meshtastic.feature.settings
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,11 +29,15 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.meshtastic.core.navigation.Route
 import org.meshtastic.core.navigation.SettingsRoute
+import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.WatchSyncStateHolder
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.getString
 import org.meshtastic.core.resources.navigate_back
+import org.meshtastic.core.resources.watch_message_retention_label
 import org.meshtastic.core.resources.watch_settings_title
 import org.meshtastic.core.resources.watch_sync_enabled_label
+import org.meshtastic.core.resources.watch_sync_channels_label
 import org.meshtastic.core.resources.watch_sync_messages_label
 import org.meshtastic.core.resources.watch_sync_nodes_label
 import org.meshtastic.core.resources.watch_sync_now_label
@@ -70,33 +74,43 @@ class WatchConfigurationScreenTest {
     }
 
     @Test
-    fun `global synchronization disables dependent controls`() = runComposeUiTest {
-        setWatchContent(state = WatchSettingsUiState(pushToWatchEnabled = false))
+    fun `watch connectivity off collapses dependent controls`() = runComposeUiTest {
+        setWatchContent(state = WatchSettingsUiState(watchConnectivityEnabled = false))
 
-        onNodeWithText(getString(Res.string.watch_sync_nodes_label)).assertIsNotEnabled()
-        onNodeWithText(getString(Res.string.watch_sync_messages_label)).assertIsNotEnabled()
-        onNodeWithText(getString(Res.string.watch_sync_now_label)).assertIsNotEnabled()
+        onNodeWithText(getString(Res.string.watch_sync_nodes_label)).assertDoesNotExist()
+        onNodeWithText(getString(Res.string.watch_sync_channels_label)).assertDoesNotExist()
+        onNodeWithText(getString(Res.string.watch_sync_messages_label)).assertDoesNotExist()
+        onNodeWithText(getString(Res.string.watch_sync_now_label)).assertDoesNotExist()
     }
 
     @Test
     fun `toggle actions reach the view model`() = runComposeUiTest {
         val watchPrefs = FakeWatchPrefs()
-        val viewModel = WatchViewModel(watchPrefs)
+        val viewModel = WatchViewModel(watchPrefs, WatchSyncStateHolder())
         setContent { AppTheme { WatchConfigurationScreen(viewModel = viewModel, onBack = {}) } }
 
         onNodeWithText(getString(Res.string.watch_sync_nodes_label)).performClick()
         onNodeWithText(getString(Res.string.watch_sync_messages_label)).performClick()
         onNodeWithText(getString(Res.string.watch_sync_enabled_label)).performClick()
 
-        assertFalse(watchPrefs.pushToWatchEnabled.value)
-        assertFalse(watchPrefs.syncNodesEnabled.value)
-        assertFalse(watchPrefs.syncMessagesEnabled.value)
+        assertFalse(watchPrefs.watchConnectivityEnabled.value)
+        assertFalse(watchPrefs.syncPreferences.value.syncNodes)
+        assertFalse(watchPrefs.syncPreferences.value.syncRecentMessages)
+    }
+
+    @Test
+    fun `message retention is hidden when recent messages are disabled`() = runComposeUiTest {
+        setWatchContent(
+            state = WatchSettingsUiState(syncPreferences = WatchSyncPreferences(syncRecentMessages = false)),
+        )
+
+        onNodeWithText(getString(Res.string.watch_message_retention_label)).assertDoesNotExist()
     }
 
     @Test
     fun `rapid manual synchronization clicks invoke one view model action`() = runComposeUiTest {
         val watchPrefs = FakeWatchPrefs()
-        val viewModel = WatchViewModel(watchPrefs)
+        val viewModel = WatchViewModel(watchPrefs, WatchSyncStateHolder())
         setContent { AppTheme { WatchConfigurationScreen(viewModel = viewModel, onBack = {}) } }
 
         onNodeWithText(getString(Res.string.watch_sync_now_label)).performClick()
@@ -123,9 +137,13 @@ class WatchConfigurationScreenTest {
             AppTheme {
                 WatchConfigurationScreen(
                     state = state,
-                    onPushToWatchChange = {},
+                    onWatchConnectivityChange = {},
                     onSyncNodesChange = {},
-                    onSyncMessagesChange = {},
+                    onSyncChannelsChange = {},
+                    onSyncRecentMessagesChange = {},
+                    onRecentMessageLimitChange = {},
+                    onSyncQuickRepliesChange = {},
+                    onSyncRadioStatusChange = {},
                     onSyncNow = {},
                     onBack = onBack,
                 )

@@ -30,6 +30,7 @@ import org.meshtastic.core.repository.NodeRestartTracker
 import org.meshtastic.core.repository.PacketRepository
 import org.meshtastic.core.repository.PlatformAnalytics
 import org.meshtastic.core.repository.RadioController
+import org.meshtastic.core.repository.WatchSyncStateHolder
 import org.meshtastic.core.repository.usecase.SendMessageUseCase
 import org.meshtastic.core.repository.usecase.SendMessageUseCaseImpl
 
@@ -47,6 +48,8 @@ class CoreRepositoryModule {
     @Single
     fun provideNodeRestartTracker(@Provided applicationScope: ApplicationCoroutineScope): NodeRestartTracker =
         NodeRestartTracker(applicationScope)
+
+    @Single fun provideWatchSyncStateHolder(): WatchSyncStateHolder = WatchSyncStateHolder()
 
     @Single
     fun provideSendMessageUseCase(

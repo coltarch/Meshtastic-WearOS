@@ -16,39 +16,61 @@
  */
 package org.meshtastic.feature.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.stringResource
 import org.meshtastic.core.navigation.Route
 import org.meshtastic.core.navigation.SettingsRoute
+import org.meshtastic.core.repository.RecentMessageLimit
 import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.watch_message_retention_description
+import org.meshtastic.core.resources.watch_message_retention_label
+import org.meshtastic.core.resources.watch_message_retention_option
 import org.meshtastic.core.resources.watch_settings_title
+import org.meshtastic.core.resources.watch_sync_channels_description
+import org.meshtastic.core.resources.watch_sync_channels_label
 import org.meshtastic.core.resources.watch_sync_enabled_description
 import org.meshtastic.core.resources.watch_sync_enabled_label
 import org.meshtastic.core.resources.watch_sync_messages_description
 import org.meshtastic.core.resources.watch_sync_messages_label
 import org.meshtastic.core.resources.watch_sync_nodes_description
 import org.meshtastic.core.resources.watch_sync_nodes_label
-import org.meshtastic.core.resources.watch_sync_now_description
-import org.meshtastic.core.resources.watch_sync_now_label
 import org.meshtastic.core.resources.watch_sync_privacy_description
+import org.meshtastic.core.resources.watch_sync_quick_replies_description
+import org.meshtastic.core.resources.watch_sync_quick_replies_label
+import org.meshtastic.core.resources.watch_sync_radio_status_description
+import org.meshtastic.core.resources.watch_sync_radio_status_label
+import org.meshtastic.core.resources.watch_sync_state_description
+import org.meshtastic.core.resources.watch_sync_state_disabled
+import org.meshtastic.core.resources.watch_sync_state_enabled
+import org.meshtastic.core.resources.watch_sync_what_to_sync
 import org.meshtastic.core.ui.component.AdaptiveTwoPane
 import org.meshtastic.core.ui.component.ListItem
 import org.meshtastic.core.ui.component.MainAppBar
@@ -56,7 +78,6 @@ import org.meshtastic.core.ui.component.SwitchPreference
 import org.meshtastic.core.ui.icon.AppSettingsAlt
 import org.meshtastic.core.ui.icon.Info
 import org.meshtastic.core.ui.icon.MeshtasticIcons
-import org.meshtastic.core.ui.icon.Refresh
 
 @Composable
 fun WatchConfigurationScreen(viewModel: WatchViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -64,9 +85,13 @@ fun WatchConfigurationScreen(viewModel: WatchViewModel, onBack: () -> Unit, modi
 
     WatchConfigurationScreen(
         state = state,
-        onPushToWatchChange = viewModel::setPushToWatchEnabled,
+        onWatchConnectivityChange = viewModel::setWatchConnectivityEnabled,
         onSyncNodesChange = viewModel::setSyncNodesEnabled,
-        onSyncMessagesChange = viewModel::setSyncMessagesEnabled,
+        onSyncChannelsChange = viewModel::setSyncChannelsEnabled,
+        onSyncRecentMessagesChange = viewModel::setSyncRecentMessagesEnabled,
+        onRecentMessageLimitChange = viewModel::setRecentMessageLimit,
+        onSyncQuickRepliesChange = viewModel::setSyncQuickRepliesEnabled,
+        onSyncRadioStatusChange = viewModel::setSyncRadioStatusEnabled,
         onSyncNow = viewModel::requestSync,
         onBack = onBack,
         modifier = modifier,
@@ -76,9 +101,13 @@ fun WatchConfigurationScreen(viewModel: WatchViewModel, onBack: () -> Unit, modi
 @Composable
 internal fun WatchConfigurationScreen(
     state: WatchSettingsUiState,
-    onPushToWatchChange: (Boolean) -> Unit,
+    onWatchConnectivityChange: (Boolean) -> Unit,
     onSyncNodesChange: (Boolean) -> Unit,
-    onSyncMessagesChange: (Boolean) -> Unit,
+    onSyncChannelsChange: (Boolean) -> Unit,
+    onSyncRecentMessagesChange: (Boolean) -> Unit,
+    onRecentMessageLimitChange: (RecentMessageLimit) -> Unit,
+    onSyncQuickRepliesChange: (Boolean) -> Unit,
+    onSyncRadioStatusChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -101,20 +130,25 @@ internal fun WatchConfigurationScreen(
             modifier =
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(paddingValues).padding(16.dp),
             first = {
-                WatchSyncPreferences(
-                    state = state,
-                    onPushToWatchChange = onPushToWatchChange,
-                    onSyncNodesChange = onSyncNodesChange,
-                    onSyncMessagesChange = onSyncMessagesChange,
-                    modifier = Modifier.padding(bottom = 16.dp),
-                )
-            },
-            second = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ManualSyncCard(enabled = state.pushToWatchEnabled, onSyncNow = onSyncNow)
-                    PrivacyCard()
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                    ConnectionSection(
+                        state = state.connection,
+                        connectivityEnabled = state.watchConnectivityEnabled,
+                        onSyncNow = onSyncNow,
+                    )
+                    WatchSyncPreferences(
+                        state = state,
+                        onWatchConnectivityChange = onWatchConnectivityChange,
+                        onSyncNodesChange = onSyncNodesChange,
+                        onSyncChannelsChange = onSyncChannelsChange,
+                        onSyncRecentMessagesChange = onSyncRecentMessagesChange,
+                        onRecentMessageLimitChange = onRecentMessageLimitChange,
+                        onSyncQuickRepliesChange = onSyncQuickRepliesChange,
+                        onSyncRadioStatusChange = onSyncRadioStatusChange,
+                    )
                 }
             },
+            second = { AnimatedVisibility(visible = state.watchConnectivityEnabled) { PrivacyCard() } },
         )
     }
 }
@@ -122,57 +156,137 @@ internal fun WatchConfigurationScreen(
 @Composable
 private fun WatchSyncPreferences(
     state: WatchSettingsUiState,
-    onPushToWatchChange: (Boolean) -> Unit,
+    onWatchConnectivityChange: (Boolean) -> Unit,
     onSyncNodesChange: (Boolean) -> Unit,
-    onSyncMessagesChange: (Boolean) -> Unit,
+    onSyncChannelsChange: (Boolean) -> Unit,
+    onSyncRecentMessagesChange: (Boolean) -> Unit,
+    onRecentMessageLimitChange: (RecentMessageLimit) -> Unit,
+    onSyncQuickRepliesChange: (Boolean) -> Unit,
+    onSyncRadioStatusChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        SwitchPreference(
-            title = stringResource(Res.string.watch_sync_enabled_label),
-            summary = stringResource(Res.string.watch_sync_enabled_description),
-            checked = state.pushToWatchEnabled,
-            enabled = true,
-            onCheckedChange = onPushToWatchChange,
-        )
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        SwitchPreference(
-            title = stringResource(Res.string.watch_sync_nodes_label),
-            summary = stringResource(Res.string.watch_sync_nodes_description),
-            checked = state.syncNodesEnabled,
-            enabled = state.pushToWatchEnabled,
-            onCheckedChange = onSyncNodesChange,
-        )
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        SwitchPreference(
-            title = stringResource(Res.string.watch_sync_messages_label),
-            summary = stringResource(Res.string.watch_sync_messages_description),
-            checked = state.syncMessagesEnabled,
-            enabled = state.pushToWatchEnabled,
-            onCheckedChange = onSyncMessagesChange,
-        )
-    }
-}
-
-@Composable
-private fun ManualSyncCard(enabled: Boolean, onSyncNow: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = stringResource(Res.string.watch_sync_now_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            SwitchPreference(
+                title = stringResource(Res.string.watch_sync_enabled_label),
+                summary = stringResource(Res.string.watch_sync_enabled_description),
+                checked = state.watchConnectivityEnabled,
+                enabled = true,
+                onCheckedChange = onWatchConnectivityChange,
             )
-            Button(onClick = onSyncNow, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-                Icon(imageVector = MeshtasticIcons.Refresh, contentDescription = null)
-                Text(text = stringResource(Res.string.watch_sync_now_label), modifier = Modifier.padding(start = 8.dp))
+        }
+        AnimatedVisibility(visible = state.watchConnectivityEnabled) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(Res.string.watch_sync_what_to_sync),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                ) {
+                    SyncSwitch(
+                        title = stringResource(Res.string.watch_sync_nodes_label),
+                        summary = stringResource(Res.string.watch_sync_nodes_description),
+                        checked = state.syncPreferences.syncNodes,
+                        onCheckedChange = onSyncNodesChange,
+                    )
+                    PreferenceDivider()
+                    SyncSwitch(
+                        title = stringResource(Res.string.watch_sync_channels_label),
+                        summary = stringResource(Res.string.watch_sync_channels_description),
+                        checked = state.syncPreferences.syncChannels,
+                        onCheckedChange = onSyncChannelsChange,
+                    )
+                    PreferenceDivider()
+                    SyncSwitch(
+                        title = stringResource(Res.string.watch_sync_messages_label),
+                        summary = stringResource(Res.string.watch_sync_messages_description),
+                        checked = state.syncPreferences.syncRecentMessages,
+                        onCheckedChange = onSyncRecentMessagesChange,
+                    )
+                    AnimatedVisibility(visible = state.syncPreferences.syncRecentMessages) {
+                        Column {
+                            PreferenceDivider()
+                            MessageRetentionPreference(
+                                selected = state.syncPreferences.recentMessageLimit,
+                                onSelected = onRecentMessageLimitChange,
+                            )
+                        }
+                    }
+                    PreferenceDivider()
+                    SyncSwitch(
+                        title = stringResource(Res.string.watch_sync_quick_replies_label),
+                        summary = stringResource(Res.string.watch_sync_quick_replies_description),
+                        checked = state.syncPreferences.syncQuickReplies,
+                        onCheckedChange = onSyncQuickRepliesChange,
+                    )
+                    PreferenceDivider()
+                    SyncSwitch(
+                        title = stringResource(Res.string.watch_sync_radio_status_label),
+                        summary = stringResource(Res.string.watch_sync_radio_status_description),
+                        checked = state.syncPreferences.syncRadioStatus,
+                        onCheckedChange = onSyncRadioStatusChange,
+                    )
+                }
             }
         }
     }
 }
+
+@Composable
+private fun SyncSwitch(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val state =
+        stringResource(
+            if (checked) Res.string.watch_sync_state_enabled else Res.string.watch_sync_state_disabled,
+        )
+    val accessibilityState = stringResource(Res.string.watch_sync_state_description, title, state)
+    SwitchPreference(
+        title = title,
+        summary = summary,
+        checked = checked,
+        enabled = true,
+        onCheckedChange = onCheckedChange,
+        modifier = Modifier.semantics { stateDescription = accessibilityState },
+    )
+}
+
+@Composable
+private fun MessageRetentionPreference(selected: RecentMessageLimit, onSelected: (RecentMessageLimit) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(stringResource(Res.string.watch_message_retention_label))
+            Text(
+                text = stringResource(Res.string.watch_message_retention_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = { expanded = true }) {
+            Text(stringResource(Res.string.watch_message_retention_option, selected.count))
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                RecentMessageLimit.entries.forEach { limit ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.watch_message_retention_option, limit.count)) },
+                        onClick = {
+                            expanded = false
+                            onSelected(limit)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun PreferenceDivider() = HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
 @Composable
 private fun PrivacyCard() {
