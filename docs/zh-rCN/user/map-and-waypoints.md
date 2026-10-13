@@ -1,8 +1,7 @@
 ---
 title: Map & Waypoints
-parent: User Guide
 nav_order: 6
-last_updated: 2026-09-11
+last_updated: 2026-10-07
 description: View node positions on the map, create and share waypoints, manage map layers and Site Planner, and control position sharing and privacy.
 aliases:
   - map
@@ -102,7 +101,7 @@ Since waypoints (and their geofences) are broadcast to the whole mesh, only the 
 
 ## 地图图层
 
-Tap the layers icon on the map to open **Manage Map Layers**. It imports your own overlays in `.kml`, `.kmz`, or GeoJSON format — including KMZ ground overlays (georeferenced images, such as exported topo or aerial tiles), which drape at their stated bounds. Add one by picking a file with **Add Layer**, opening a file with Meshtastic, or sharing it into the app from another app. **Add Network Layer** instead takes a name and an `http://` or `https://` URL pointing at a KML or GeoJSON file; that layer then carries its own refresh button in the sheet. On **Google Play** builds the toolbar's refresh button re-fetches every visible network layer at once.
+Tap the layers icon on the map to open **Manage Map Layers**. It imports your own overlays in `.kml`, `.kmz`, or GeoJSON format, including KMZ ground overlays (georeferenced images, such as exported topo or aerial tiles), which drape at their stated bounds. Add one by picking a file with **Add Layer**, opening a file with Meshtastic, or sharing it into the app from another app. **Add Network Layer** instead takes a name and an `https://` URL pointing at a KML or GeoJSON file (`http://` also works on Desktop, but on Android only for `localhost`); that layer then carries its own refresh button in the sheet. On **Google Play** builds the toolbar's refresh button re-fetches every visible network layer at once.
 
 Imported layers are listed with a toggle to show/hide each one and an option to remove it. Each layer — imported or built-in overlay — carries its own opacity slider while it is switched on, so an overlay can be faded back rather than only switched off. This works on the Google Play build, the F-Droid build, and **Desktop**, which shares the same layer store and file picker.
 
@@ -161,6 +160,8 @@ Tile Sources** at the foot of the base map picker and paste a URL template using
 https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg
 ```
 
+On **Android** the template must use `https://`; plain `http://` works only for `localhost`.
+
 Tiles are cached on disk, so panning does not re-download what you were just looking at.
 
 On **Android**, the same screen also imports a local `.mbtiles` archive for fully offline use.
@@ -168,7 +169,8 @@ On **Android**, the same screen also imports a local `.mbtiles` archive for full
 On **F-Droid**, select a vector base map first — Liberty, Positron, or Dark — since a download is defined
 against a vector style and **Start Download** stays disabled over a raster one. Frame the area you want on
 screen, then tap **Start Download** in the layers sheet: that creates a paused pack covering the current zoom
-plus two levels deeper. Press play on the pack's row to actually download it.
+plus two levels deeper. Press play on the pack's row to actually download it. If the offline database
+cannot be opened, the section says offline maps are unavailable and **Start Download** stays disabled.
 
 On **Google Play**, the layers sheet's **Offline Manager** section downloads its own offline regions instead
 — water, roads and administrative boundaries extracted from the public Protomaps basemap dataset, drawn

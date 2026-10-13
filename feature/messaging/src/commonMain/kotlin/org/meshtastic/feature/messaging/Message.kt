@@ -91,12 +91,12 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.meshtastic.core.common.util.HomoglyphCharacterStringTransformer
-import org.meshtastic.core.database.entity.QuickChatAction
 import org.meshtastic.core.model.ConnectionState
 import org.meshtastic.core.model.ContactKey
 import org.meshtastic.core.model.MENTION_TOKEN_REGEX
 import org.meshtastic.core.model.Node
 import org.meshtastic.core.model.NodeAddress
+import org.meshtastic.core.model.QuickChatAction
 import org.meshtastic.core.model.util.getChannel
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.archived_channel_read_only
@@ -104,7 +104,7 @@ import org.meshtastic.core.resources.send
 import org.meshtastic.core.resources.type_a_message
 import org.meshtastic.core.resources.unknown_channel
 import org.meshtastic.core.ui.component.InlineStyle
-import org.meshtastic.core.ui.component.SharedContactDialog
+import org.meshtastic.core.ui.component.ShareContactDialog
 import org.meshtastic.core.ui.component.smartScrollToIndex
 import org.meshtastic.core.ui.icon.History
 import org.meshtastic.core.ui.icon.MeshtasticIcons
@@ -395,7 +395,7 @@ fun MessageScreen(
         onDismiss = viewModel::dismissTranslationDialog,
     )
 
-    sharedContact?.let { contact -> SharedContactDialog(contact = contact, onDismiss = { sharedContact = null }) }
+    sharedContact?.let { contact -> ShareContactDialog(contact = contact, onDismiss = { sharedContact = null }) }
 
     val originalMessage by
         remember(replyingToPacketId, pagedMessages.itemCount) {
@@ -554,7 +554,9 @@ fun MessageScreen(
                     },
                     onClickChip = { onEvent(MessageScreenEvent.NodeDetails(it)) },
                     onDeleteMessages = { viewModel.deleteMessages(it) },
-                    onSendMessage = { text, key -> if (!isRetiredChannel) viewModel.sendMessage(text, key) },
+                    onResendMessage = { message ->
+                        viewModel.resendMessage(message.uuid, message.text, contactKey)
+                    },
                     onReply = { message -> if (!isRetiredChannel) replyingToPacketId = message?.packetId },
                     onTranslate = { onEvent(MessageScreenEvent.TranslateMessage(it)) },
                     onToggleTranslation = { onEvent(MessageScreenEvent.ToggleShowTranslated(it)) },
@@ -649,6 +651,9 @@ private val LIVE_CODE = Regex("`([^`]+)`")
 
 internal data class LiveStyleSpan(val range: IntRange, val style: InlineStyle)
 
+// Common Kotlin has no MatchGroup.range; every LIVE_* match is its group wrapped in fixed-width delimiters.
+private fun MatchResult.innerRange(delimiterWidth: Int) = (range.first + delimiterWidth)..(range.last - delimiterWidth)
+
 /**
  * Detects live-markdown spans in [source] using simple regex patterns instead of a full GFM AST parser.
  *
@@ -666,15 +671,15 @@ internal fun liveInlineMarkdownStyleRanges(source: String): List<LiveStyleSpan> 
     }
     return buildList {
         LIVE_BOLD.findAll(source).filterNot(isBlockedByCodeSpan).forEach {
-            add(LiveStyleSpan(it.groups[1]!!.range, InlineStyle.Bold))
+            add(LiveStyleSpan(it.innerRange(2), InlineStyle.Bold))
         }
         LIVE_ITALIC.findAll(source).filterNot(isBlockedByCodeSpan).forEach {
-            add(LiveStyleSpan(it.groups[1]!!.range, InlineStyle.Italic))
+            add(LiveStyleSpan(it.innerRange(1), InlineStyle.Italic))
         }
         LIVE_STRIKE.findAll(source).filterNot(isBlockedByCodeSpan).forEach {
-            add(LiveStyleSpan(it.groups[1]!!.range, InlineStyle.Strikethrough))
+            add(LiveStyleSpan(it.innerRange(2), InlineStyle.Strikethrough))
         }
-        codeMatches.forEach { add(LiveStyleSpan(it.groups[1]!!.range, InlineStyle.Code)) }
+        codeMatches.forEach { add(LiveStyleSpan(it.innerRange(1), InlineStyle.Code)) }
     }
         .sortedWith(compareBy<LiveStyleSpan>({ it.range.first }, { it.range.last }, { it.style.ordinal }))
 }

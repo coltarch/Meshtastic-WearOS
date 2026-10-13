@@ -42,6 +42,7 @@ import kotlinx.serialization.json.put
 import org.jetbrains.compose.resources.stringResource
 import org.maplibre.compose.camera.CameraAnimation
 import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.expressions.dsl.asBoolean
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.dsl.feature
@@ -104,7 +105,7 @@ fun MapLibreInlineMap(
     val basemaps = rememberBasemapSelection(customBasemaps()) ?: return
     val target = GeoPosition(longitude = node.longitude, latitude = node.latitude)
     val mapState =
-        rememberSecondaryMapState(basemaps, CameraPosition(target = target, zoom = INLINE_ZOOM)) {
+        rememberSecondaryMapState(basemaps, CameraPosition(center = target, zoom = INLINE_ZOOM)) {
             val source = rememberFeatureSource(node) { nodesToFeatureCollection(listOf(node)) }
 
             // The node-detail sheet is where a degraded position matters most — it is the screen a user opens to ask
@@ -116,11 +117,8 @@ fun MapLibreInlineMap(
     // Follows the node as fresh positions arrive, as the Google mini-map does. Guarded on the current target so the
     // first composition does not animate to where the camera already is.
     LaunchedEffect(target) {
-        if (mapState.cameraPosition.target != target) {
-            mapState.animateCameraPosition(
-                mapState.cameraPosition.copy(target = target),
-                animation = CameraAnimation.Ease(),
-            )
+        if (mapState.cameraPosition.center != target) {
+            mapState.animateCamera(CameraUpdate(center = target), CameraAnimation.Ease.Standard)
         }
     }
 
@@ -132,7 +130,12 @@ fun MapLibreInlineMap(
     // The same control every other map uses, at the same size. A shrunken variant was tried and looked out of place
     // against the rest of the map chrome for the ~25% of height it saved.
     Box(modifier = modifier) {
-        SecondaryMapSurface(mapState = mapState, basemaps = basemaps, uiOptions = InlineMapUiOptions)
+        SecondaryMapSurface(
+            mapState = mapState,
+            basemaps = basemaps,
+            uiOptions = InlineMapUiOptions,
+            showAttribution = false,
+        )
 
         MapZoom(mapState = mapState, basemap = basemaps.current)
     }
@@ -168,7 +171,7 @@ fun MapLibreTracerouteMap(
     FitBoundsOnceVisible(mapState = mapState, key = hops) { nodesBoundingBox(hops) }
 
     Box(modifier = modifier) {
-        SecondaryMapSurface(mapState = mapState, basemaps = basemaps)
+        SecondaryMapSurface(mapState = mapState, basemaps = basemaps, showAttribution = false)
         SecondaryMapChrome(mapState = mapState, basemaps = basemaps)
     }
 }
@@ -209,7 +212,7 @@ fun MapLibreDiscoveryMap(
     val located = remember(nodes) { nodes.filter { it.latitude != 0.0 || it.longitude != 0.0 } }
 
     val mapState =
-        rememberSecondaryMapState(basemaps, CameraPosition(target = scanner, zoom = DETAIL_ZOOM)) {
+        rememberSecondaryMapState(basemaps, CameraPosition(center = scanner, zoom = DETAIL_ZOOM)) {
             DiscoveryTopologyLayer(scanner = scanner, nodes = located)
             DiscoveredNodeLayers(nodes = located, onNodeClick = { selectedNode = located.getOrNull(it) })
             ScannerLayer(scanner = scanner, label = stringResource(Res.string.you))
@@ -228,7 +231,7 @@ fun MapLibreDiscoveryMap(
         // snippet, so the tapped node's numbers go at the foot of the map.
         DiscoveryNodeCard(
             node = selectedNode,
-            // Clear of the logo and attribution row, which the styles are licensed on condition of showing.
+            // Clear of the wordmark and attribution button along the bottom edge, which every map shows.
             modifier =
             Modifier.align(Alignment.BottomStart)
                 .padding(start = CARD_INSET.dp, end = CARD_INSET.dp, bottom = ORNAMENT_CLEARANCE.dp),
@@ -398,7 +401,7 @@ private fun ScannerLayer(scanner: GeoPosition, label: String) {
  * `isDragRotateTiltEnabled = false` had bundled rotation in with tilt, so a mouse drag could not rotate these maps
  * either despite the intent above. It can now.
  */
-internal val SecondaryMapInteractions = MapInteractions { camera { tilt { enabled = false } } }
+internal val SecondaryMapInteractions = MapInteractions { camera { pitch { enabled = false } } }
 
 /**
  * Gestures off entirely, for the mini-map embedded in the node detail sheet.
@@ -419,7 +422,7 @@ internal val InlineMapUiOptions = MapUiOptions {
             pan { enabled = false }
             zoom { enabled = false }
             rotate { enabled = false }
-            tilt { enabled = false }
+            pitch { enabled = false }
         }
         scroll { enabled = false }
         doubleTap { enabled = false }
@@ -444,7 +447,7 @@ internal val SecondaryMapFitPadding = PaddingValues(start = 48.dp, top = 64.dp, 
 internal const val CARD_INSET = 8
 
 /**
- * Height to leave for the map's logo and attribution row, which the styles are licensed on condition of showing.
+ * Height to leave for the map's wordmark and attribution button, which every map shows.
  *
  * See [org.meshtastic.feature.map.maplibre.component.MeshMapOrnaments].
  */

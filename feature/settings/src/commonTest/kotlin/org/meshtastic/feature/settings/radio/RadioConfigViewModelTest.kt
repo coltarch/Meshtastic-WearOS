@@ -37,6 +37,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -55,11 +56,13 @@ import org.meshtastic.core.domain.usecase.settings.ProcessRadioResponseUseCase
 import org.meshtastic.core.domain.usecase.settings.RadioConfigUseCase
 import org.meshtastic.core.domain.usecase.settings.RadioResponseResult
 import org.meshtastic.core.model.ConnectionState
+import org.meshtastic.core.model.DeviceHardware
 import org.meshtastic.core.model.MqttProbeStatus
 import org.meshtastic.core.model.MyNodeInfo
 import org.meshtastic.core.model.Node
 import org.meshtastic.core.model.util.MalformedMeshtasticUrlException
 import org.meshtastic.core.repository.AnalyticsPrefs
+import org.meshtastic.core.repository.DeviceHardwareRepository
 import org.meshtastic.core.repository.FileService
 import org.meshtastic.core.repository.HomoglyphPrefs
 import org.meshtastic.core.repository.LocationRepository
@@ -89,6 +92,7 @@ import org.meshtastic.proto.DeviceMetadata
 import org.meshtastic.proto.DeviceProfile
 import org.meshtastic.proto.ExcludedModules
 import org.meshtastic.proto.HamParameters
+import org.meshtastic.proto.HardwareModel
 import org.meshtastic.proto.LoRaPresetGroup
 import org.meshtastic.proto.LoRaRegionPresetMap
 import org.meshtastic.proto.LocalConfig
@@ -399,6 +403,7 @@ class RadioConfigViewModelTest {
     private val installProfileUseCase: InstallProfileUseCase = mock(MockMode.autofill)
     private val radioConfigUseCase: RadioConfigUseCase = mock(MockMode.autofill)
     private val adminActionsUseCase: AdminActionsUseCase = mock(MockMode.autofill)
+    private val deviceHardwareRepository: DeviceHardwareRepository = mock(MockMode.autofill)
     private val processRadioResponseUseCase: ProcessRadioResponseUseCase = mock(MockMode.autofill)
     private val locationService: LocationService = mock(MockMode.autofill)
     private val fileService: FileService = mock(MockMode.autofill)
@@ -443,6 +448,7 @@ class RadioConfigViewModelTest {
         every { mqttManager.proxyActive } returns MutableStateFlow(false)
 
         every { uiPrefs.showQuickChat } returns MutableStateFlow(false)
+        every { deviceHardwareRepository.observeDeviceHardware(any(), any()) } returns flowOf(null)
 
         viewModel = createViewModel()
     }
@@ -468,6 +474,7 @@ class RadioConfigViewModelTest {
         radioConfigRepository = radioConfigRepository,
         serviceRepository = serviceRepository,
         nodeRepository = nodeRepository,
+        deviceHardwareRepository = deviceHardwareRepository,
         locationRepository = locationRepository,
         mapConsentPrefs = mapConsentPrefs,
         analyticsPrefs = analyticsPrefs,
@@ -642,23 +649,21 @@ class RadioConfigViewModelTest {
     }
 
     @Test
-    fun `toggleAnalyticsAllowed calls prefs`() {
-        every { analyticsPrefs.analyticsAllowed } returns MutableStateFlow(true)
-        every { analyticsPrefs.setAnalyticsAllowed(false) } returns Unit
+    fun `toggleAnalyticsAllowed delegates to the prefs toggle`() {
+        every { analyticsPrefs.toggleAnalyticsAllowed() } returns Unit
 
         viewModel.toggleAnalyticsAllowed()
 
-        verify { analyticsPrefs.setAnalyticsAllowed(false) }
+        verify { analyticsPrefs.toggleAnalyticsAllowed() }
     }
 
     @Test
-    fun `toggleHomoglyphCharactersEncodingEnabled calls prefs`() {
-        every { homoglyphEncodingPrefs.homoglyphEncodingEnabled } returns MutableStateFlow(true)
-        every { homoglyphEncodingPrefs.setHomoglyphEncodingEnabled(false) } returns Unit
+    fun `toggleHomoglyphCharactersEncodingEnabled delegates to the prefs toggle`() {
+        every { homoglyphEncodingPrefs.toggleHomoglyphEncodingEnabled() } returns Unit
 
         viewModel.toggleHomoglyphCharactersEncodingEnabled()
 
-        verify { homoglyphEncodingPrefs.setHomoglyphEncodingEnabled(false) }
+        verify { homoglyphEncodingPrefs.toggleHomoglyphEncodingEnabled() }
     }
 
     @Test
@@ -1127,7 +1132,7 @@ class RadioConfigViewModelTest {
             }
         every { processRadioResponseUseCase(any(), 123, any()) } calls
             {
-                val pendingRequestIds = it.args[2] as Set<Int>
+                val pendingRequestIds = it.arg<Set<Int>>(2)
                 if (42 in pendingRequestIds) RadioResponseResult.Owner(owner) else null
             }
 
@@ -1289,8 +1294,8 @@ class RadioConfigViewModelTest {
         // Channel A (index 1) completed before channel B (index 2) threw.
         assertEquals(listOf(1, 2), writtenIndexes)
         assertNotNull(interrupted)
-        assertEquals(1, interrupted!!.appliedWriteCount)
-        assertEquals("A", interrupted!!.appliedSettings[1].name)
+        assertEquals(1, interrupted.appliedWriteCount)
+        assertEquals("A", interrupted.appliedSettings[1].name)
     }
 
     @Test
@@ -1315,6 +1320,85 @@ class RadioConfigViewModelTest {
         packetFlow.emit(MeshPacket.Builder().build())
 
         verifySuspend { adminActionsUseCase.reboot(123, any()) }
+    }
+
+    @Test
+    fun `setResponseStateLoading for REBOOT_DFU calls useCase after config response`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+
+        val packetFlow = MutableSharedFlow<MeshPacket>()
+        every { serviceRepository.meshPacketFlow } returns packetFlow
+        every { processRadioResponseUseCase(any(), any(), any()) } returns
+            RadioResponseResult.ConfigResponse(Config.Builder().build())
+
+        viewModel = createViewModel()
+
+        everySuspend { adminActionsUseCase.rebootToDfu(any(), any()) } returns 42
+
+        viewModel.setResponseStateLoading(AdminRoute.REBOOT_DFU)
+        packetFlow.emit(MeshPacket.Builder().build())
+
+        verifySuspend { adminActionsUseCase.rebootToDfu(123, any()) }
+    }
+
+    @Test
+    fun `an unacknowledged DFU request settles as success instead of a timeout error`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+
+        val packetFlow = MutableSharedFlow<MeshPacket>()
+        every { serviceRepository.meshPacketFlow } returns packetFlow
+        every { processRadioResponseUseCase(any(), any(), any()) } returns
+            RadioResponseResult.ConfigResponse(Config.Builder().build())
+
+        viewModel = createViewModel()
+
+        everySuspend { adminActionsUseCase.rebootToDfu(any(), any()) } calls
+            {
+                it.args.onRequestIdArg()(42)
+                42
+            }
+
+        viewModel.setResponseStateLoading(AdminRoute.REBOOT_DFU)
+        packetFlow.emit(MeshPacket.Builder().build())
+        runCurrent()
+        verifySuspend { adminActionsUseCase.rebootToDfu(123, any()) }
+        assertTrue(viewModel.radioConfigState.value.responseState is ResponseState.Loading)
+
+        advanceTimeBy(31_000)
+        runCurrent()
+
+        assertTrue(viewModel.radioConfigState.value.responseState is ResponseState.Success)
+    }
+
+    @Test
+    fun `canRebootToDfu is true only for nRF52 hardware`() = runTest {
+        val node =
+            Node(
+                num = 123,
+                user =
+                User.Builder()
+                    .also { wb ->
+                        wb.id = "!123"
+                        wb.hw_model = HardwareModel.RAK4631
+                    }
+                    .build(),
+            )
+        nodeRepository.setNodes(listOf(node))
+        every { deviceHardwareRepository.observeDeviceHardware(HardwareModel.RAK4631.value, any()) } returns
+            flowOf(DeviceHardware(architecture = "nrf52840"))
+
+        viewModel = createViewModel(destNum = 123)
+        advanceUntilIdle()
+        assertTrue(viewModel.radioConfigState.value.canRebootToDfu)
+
+        every { deviceHardwareRepository.observeDeviceHardware(HardwareModel.RAK4631.value, any()) } returns
+            flowOf(DeviceHardware(architecture = "esp32-s3"))
+
+        viewModel = createViewModel(destNum = 123)
+        advanceUntilIdle()
+        assertFalse(viewModel.radioConfigState.value.canRebootToDfu)
     }
 
     @Test
@@ -1940,7 +2024,7 @@ class RadioConfigViewModelTest {
         var response: RadioResponseResult = RadioResponseResult.Error(maxRetransmit, Routing.Error.MAX_RETRANSMIT)
         every { processRadioResponseUseCase(any(), 456, any()) } calls
             {
-                val pendingRequestIds = it.args[2] as Set<Int>
+                val pendingRequestIds = it.arg<Set<Int>>(2)
                 if (42 in pendingRequestIds) response else null
             }
         nodeRepository.setNodes(listOf(localNode, remoteNode))
@@ -2641,12 +2725,22 @@ class RadioConfigViewModelTest {
         // restoring it would wipe the device's real keys with blanks.
         viewModel.backupSecurityKeys(Config.SecurityConfig.Builder().build())
 
-        verify(exactly(0)) { securityKeyBackupStore.save(any(), any(), any(), any()) }
+        verify(exactly(0)) { securityKeyBackupStore.save(any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `backupSecurityKeys persists real keys`() = runTest {
-        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+    fun `backupSecurityKeys persists real keys and the node's long name`() = runTest {
+        val node =
+            Node(
+                num = 123,
+                user =
+                User.Builder()
+                    .also { wb ->
+                        wb.id = "!123"
+                        wb.long_name = "Base Station"
+                    }
+                    .build(),
+            )
         nodeRepository.setNodes(listOf(node))
         viewModel = createViewModel()
 
@@ -2660,7 +2754,7 @@ class RadioConfigViewModelTest {
         viewModel.backupSecurityKeys(config)
 
         // Pin the exact base64 so a public/private swap or encoding change is caught.
-        verify { securityKeyBackupStore.save(123, "cHVi", "cHJpdg==", any()) }
+        verify { securityKeyBackupStore.save(123, "cHVi", "cHJpdg==", any(), "Base Station") }
     }
 
     @Test
@@ -2698,6 +2792,70 @@ class RadioConfigViewModelTest {
         verifySuspend {
             radioConfigUseCase.setConfig(123, Config.Builder().also { wb -> wb.security = decoded }.build(), any())
         }
+    }
+
+    @Test
+    fun `restoreSecurityKeys from another node number pushes those keys to this node`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+        viewModel = createViewModel()
+
+        val stored = StoredSecurityKeys(publicKeyBase64 = "cHVi", privateKeyBase64 = "cHJpdg==", timestamp = 1L)
+        val decoded = Config.SecurityConfig.Builder().also { wb -> wb.public_key = "pub".encodeUtf8() }.build()
+        every { securityKeyBackupStore.get(456) } returns stored
+        every { importSecurityConfigUseCase(stored) } returns Result.success(decoded)
+        everySuspend { radioConfigUseCase.setConfig(any(), any(), any()) } returns 42
+
+        viewModel.restoreSecurityKeys(fromNodeNum = 456)
+
+        verifySuspend {
+            radioConfigUseCase.setConfig(123, Config.Builder().also { wb -> wb.security = decoded }.build(), any())
+        }
+    }
+
+    @Test
+    fun `securityKeyBackups lists this node first then newest first with known names`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        val oldSelf =
+            Node(
+                num = 456,
+                user =
+                User.Builder()
+                    .also { wb ->
+                        wb.id = "!456"
+                        wb.long_name = "Old Self"
+                    }
+                    .build(),
+            )
+        nodeRepository.setNodes(listOf(node, oldSelf))
+        viewModel = createViewModel()
+        every { securityKeyBackupStore.all() } returns
+            mapOf(
+                456 to StoredSecurityKeys("a", "b", timestamp = 3L),
+                789 to StoredSecurityKeys("c", "d", timestamp = 5L, longName = "Saved Name"),
+                321 to StoredSecurityKeys("g", "h", timestamp = 2L),
+                123 to StoredSecurityKeys("e", "f", timestamp = 1L),
+            )
+
+        val backups = viewModel.securityKeyBackups()
+
+        assertEquals(listOf(123, 789, 456, 321), backups.map { it.nodeNum })
+        assertEquals(listOf(true, false, false, false), backups.map { it.isCurrentNode })
+        assertEquals("Saved Name", backups[1].longName)
+        assertEquals("Old Self", backups[2].longName)
+        assertNull(backups[3].longName)
+    }
+
+    @Test
+    fun `deleteSecurityKeyBackup removes the backup under the picked node number`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+        viewModel = createViewModel()
+
+        viewModel.deleteSecurityKeyBackup(backupNodeNum = 456)
+
+        verify { securityKeyBackupStore.delete(456) }
+        verify(exactly(0)) { securityKeyBackupStore.delete(123) }
     }
 
     private fun fourChannelFixture() = listOf(
@@ -2797,6 +2955,48 @@ class RadioConfigViewModelTest {
             Config.Builder()
                 .also { wb ->
                     wb.network = Config.NetworkConfig.Builder().also { wb -> wb.wifi_enabled = true }.build()
+                }
+                .build(),
+        )
+        runCurrent()
+
+        assertFalse(nodeRestartTracker.restartExpected.value)
+    }
+
+    @Test
+    fun `local module save that reboots opens the restart window`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+        nodeRepository.setMyNodeInfo(myNodeInfo(myNodeNum = 123))
+        viewModel = createViewModel()
+        runCurrent()
+        everySuspend { radioConfigUseCase.setModuleConfig(any(), any(), any()) } returns 42
+
+        nodeRestartTracker.onConnected()
+        viewModel.setModuleConfig(
+            ModuleConfig.Builder()
+                .also { wb -> wb.mqtt = ModuleConfig.MQTTConfig.Builder().also { wb -> wb.enabled = true }.build() }
+                .build(),
+        )
+        runCurrent()
+
+        assertTrue(nodeRestartTracker.restartExpected.value)
+    }
+
+    @Test
+    fun `local Mesh Beacon save does not open the restart window`() = runTest {
+        val node = Node(num = 123, user = User.Builder().also { wb -> wb.id = "!123" }.build())
+        nodeRepository.setNodes(listOf(node))
+        nodeRepository.setMyNodeInfo(myNodeInfo(myNodeNum = 123))
+        viewModel = createViewModel()
+        runCurrent()
+        everySuspend { radioConfigUseCase.setModuleConfig(any(), any(), any()) } returns 42
+
+        nodeRestartTracker.onConnected()
+        viewModel.setModuleConfig(
+            ModuleConfig.Builder()
+                .also { wb ->
+                    wb.mesh_beacon = MeshBeaconConfig.Builder().also { wb -> wb.broadcast_message = "hi" }.build()
                 }
                 .build(),
         )

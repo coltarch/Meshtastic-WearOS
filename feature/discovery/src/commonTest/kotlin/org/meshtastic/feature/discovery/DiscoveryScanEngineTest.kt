@@ -14,8 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("MagicNumber")
-
 package org.meshtastic.feature.discovery
 
 import kotlinx.coroutines.CompletableDeferred
@@ -54,6 +52,9 @@ import org.meshtastic.core.testing.FakeNodeRepository
 import org.meshtastic.core.testing.FakeRadioConfigRepository
 import org.meshtastic.core.testing.FakeServiceRepository
 import org.meshtastic.feature.discovery.ai.DiscoverySummaryAiProvider
+import org.meshtastic.proto.Channel
+import org.meshtastic.proto.ChannelSet
+import org.meshtastic.proto.ChannelSettings
 import org.meshtastic.proto.Config
 import org.meshtastic.proto.Data
 import org.meshtastic.proto.LocalConfig
@@ -268,7 +269,6 @@ class DiscoveryScanEngineTest {
      * (collection clearing). Call before sending packets to avoid a race where the scan loop's `collectedNodes.clear()`
      * wipes out test-injected data.
      */
-    @Suppress("MagicNumber")
     private suspend fun awaitScanLoopInit() {
         delay(100)
     }
@@ -771,7 +771,7 @@ class DiscoveryScanEngineTest {
 
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Success, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Success, state.outcome)
         assertEquals(1, radioController.neighborInfoRequests.size)
         assertEquals("complete", discoveryDao.sessions.values.single().completionStatus)
     }
@@ -787,7 +787,7 @@ class DiscoveryScanEngineTest {
 
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Success, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Success, state.outcome)
         assertEquals(1, radioController.neighborInfoRequests.size)
         assertEquals("complete", discoveryDao.sessions.values.single().completionStatus)
     }
@@ -809,7 +809,7 @@ class DiscoveryScanEngineTest {
         // none of which happened before the fix, because cancelScanInternal() cancelled this coroutine first.
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Failed, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Failed, state.outcome)
         assertFalse(engine.isActive)
         assertNull(collectorRegistry.collector, "collector should be unregistered")
 
@@ -928,7 +928,7 @@ class DiscoveryScanEngineTest {
 
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Success, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Success, state.outcome)
         assertEquals(DiscoverySessionStatus.COMPLETE, discoveryDao.sessions.values.first().completionStatus)
     }
 
@@ -1002,7 +1002,7 @@ class DiscoveryScanEngineTest {
 
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Failed, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Failed, state.outcome)
         assertEquals(DiscoverySessionStatus.FAILED, discoveryDao.sessions.values.first().completionStatus)
         assertEquals(ChannelOption.LONG_FAST.modemPreset, radioController.lastLocalConfig?.lora?.modem_preset)
         assertTrue(
@@ -1162,8 +1162,121 @@ class DiscoveryScanEngineTest {
 
         val state = engine.scanState.value
         assertTrue(state is DiscoveryScanState.Complete, "expected Complete, was $state")
-        assertEquals(DiscoveryScanState.CompletionOutcome.Success, (state as DiscoveryScanState.Complete).outcome)
+        assertEquals(DiscoveryScanState.CompletionOutcome.Success, state.outcome)
         assertEquals(DiscoverySessionStatus.COMPLETE, discoveryDao.sessions.values.first().completionStatus)
+        assertEquals(ChannelOption.LONG_FAST.modemPreset, radioController.lastLocalConfig?.lora?.modem_preset)
+    }
+
+    // endregion
+
+    // region Public-preset targets scan the public mesh
+
+    private val defaultPublicPsk: ByteString = byteArrayOf(1).toByteString()
+
+    private fun primaryChannelSettings(name: String, psk: ByteString) = ChannelSettings.Builder()
+        .also { wb ->
+            wb.name = name
+            wb.psk = psk
+            wb.uplink_enabled = true
+        }
+        .build()
+
+    private fun setPrimaryChannel(settings: ChannelSettings) {
+        radioConfigRepository.setChannelSet(ChannelSet.Builder().also { wb -> wb.settings = listOf(settings) }.build())
+    }
+
+    private fun setHomeLora(channelNum: Int) {
+        radioConfigRepository.setLocalConfigDirect(
+            LocalConfig.Builder()
+                .also { wb ->
+                    wb.lora =
+                        Config.LoRaConfig.Builder()
+                            .also { lb ->
+                                lb.use_preset = true
+                                lb.modem_preset = ChannelOption.LONG_FAST.modemPreset
+                                lb.channel_num = channelNum
+                            }
+                            .build()
+                }
+                .build(),
+        )
+    }
+
+    private fun assertPrimaryWrite(channel: Channel, expected: ChannelSettings) {
+        assertEquals(0, channel.index)
+        assertEquals(Channel.Role.PRIMARY, channel.role)
+        assertEquals(expected, channel.settings)
+    }
+
+    @Test
+    fun customPrimaryChannelIsSwappedToPublicForTheScanAndRestoredOnCompletion() = runTest {
+        val home = primaryChannelSettings(name = "PartyNet", psk = ByteString.of(7, 7, 7))
+        setPrimaryChannel(home)
+        val engine = createEngine(this)
+        engine.startScan(listOf(ChannelOption.SHORT_FAST), dwellDurationSeconds = 1)
+        advanceUntilIdle()
+
+        assertTrue(engine.scanState.value is DiscoveryScanState.Complete)
+        assertEquals(2, radioController.channelWrites.size)
+        assertPrimaryWrite(
+            radioController.channelWrites.first(),
+            expected =
+            home
+                .newBuilder()
+                .also { wb ->
+                    wb.name = ""
+                    wb.psk = defaultPublicPsk
+                }
+                .build(),
+        )
+        assertPrimaryWrite(radioController.channelWrites.last(), expected = home)
+        assertEquals(home, discoveryDao.sessions.values.first().homePrimaryChannel)
+    }
+
+    @Test
+    fun defaultPublicPrimaryChannelIsNotWrittenDuringAScan() = runTest {
+        setPrimaryChannel(primaryChannelSettings(name = "", psk = defaultPublicPsk))
+        val engine = createEngine(this)
+        engine.startScan(listOf(ChannelOption.SHORT_FAST), dwellDurationSeconds = 1)
+        advanceUntilIdle()
+
+        assertTrue(engine.scanState.value is DiscoveryScanState.Complete)
+        assertTrue(radioController.channelWrites.isEmpty())
+        assertNull(discoveryDao.sessions.values.first().homePrimaryChannel)
+        assertEquals(ChannelOption.LONG_FAST.modemPreset, radioController.lastLocalConfig?.lora?.modem_preset)
+    }
+
+    @Test
+    fun customFrequencySlotScansOnTheDefaultSlotAndIsRestored() = runTest {
+        setHomeLora(channelNum = 20)
+        val engine = createEngine(this)
+        engine.startScan(listOf(ChannelOption.SHORT_FAST), dwellDurationSeconds = 1)
+        advanceUntilIdle()
+
+        assertTrue(engine.scanState.value is DiscoveryScanState.Complete)
+        val scanLora = radioController.configWrites.first().lora
+        assertEquals(ChannelOption.SHORT_FAST.modemPreset, scanLora?.modem_preset)
+        assertEquals(0, scanLora?.channel_num)
+        val restoredLora = radioController.lastLocalConfig?.lora
+        assertEquals(ChannelOption.LONG_FAST.modemPreset, restoredLora?.modem_preset)
+        assertEquals(20, restoredLora?.channel_num)
+    }
+
+    @Test
+    fun stopScanRestoresASwappedPrimaryChannel() = runTest {
+        val home = primaryChannelSettings(name = "PartyNet", psk = ByteString.of(7, 7, 7))
+        setPrimaryChannel(home)
+        val engine = createEngine(this)
+        engine.startScan(listOf(ChannelOption.SHORT_FAST), dwellDurationSeconds = 60)
+        advanceTimeBy(5_000)
+        assertScanActive(engine)
+        assertEquals(1, radioController.channelWrites.size)
+
+        engine.stopScan()
+        advanceUntilIdle()
+
+        assertEquals(2, radioController.channelWrites.size)
+        assertPrimaryWrite(radioController.channelWrites.last(), expected = home)
         assertEquals(ChannelOption.LONG_FAST.modemPreset, radioController.lastLocalConfig?.lora?.modem_preset)
     }
 

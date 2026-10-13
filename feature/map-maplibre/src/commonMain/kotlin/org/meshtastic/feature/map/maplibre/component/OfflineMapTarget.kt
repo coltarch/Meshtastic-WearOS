@@ -29,35 +29,40 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.maplibre.compose.map.DefaultMapRuntime
 import org.maplibre.compose.offline.DownloadProgress
 import org.maplibre.compose.offline.DownloadStatus
-import org.maplibre.compose.offline.OfflineManager
 import org.maplibre.compose.offline.OfflinePack
 import org.maplibre.compose.offline.OfflinePackDefinition
+import org.maplibre.compose.offline.OfflineStorage
+import org.maplibre.compose.offline.OfflineStorageState
+import org.maplibre.compose.offline.offlineStorage
 import org.maplibre.spatialk.geojson.BoundingBox
-import org.meshtastic.core.common.util.NumberFormatter
+import org.meshtastic.core.common.util.formatByteSize
 import org.meshtastic.core.common.util.ioDispatcher
 import org.meshtastic.core.common.util.safeCatching
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.delete
 import org.meshtastic.core.resources.map_cache_manager
-import org.meshtastic.core.resources.map_cache_megabytes
 import org.meshtastic.core.resources.map_cache_tiles
 import org.meshtastic.core.resources.map_download_status_complete
 import org.meshtastic.core.resources.map_download_status_downloading
 import org.meshtastic.core.resources.map_download_status_paused
+import org.meshtastic.core.resources.map_offline_create_failed
+import org.meshtastic.core.resources.map_offline_unavailable
 import org.meshtastic.core.resources.map_select_download_region
 import org.meshtastic.core.resources.map_start_download
 import org.meshtastic.core.resources.map_tile_download_estimate
@@ -87,11 +92,13 @@ internal class OfflineMapTarget(
  */
 @Composable
 internal fun OfflineMapsSection(target: OfflineMapTarget, onShowRegion: (BoundingBox) -> Unit) {
-    // 0.16.0 moved the manager onto the runtime; `rememberOfflineManager()` is gone. The default runtime is
-    // the one every map here uses, so its packs are the ones the user sees on the map.
-    val manager = DefaultMapRuntime.instance.offlineManager
+    // Offline storage hangs off the runtime. The default runtime is the one every map here uses, so its packs are
+    // the ones the user sees on the map.
+    val manager = DefaultMapRuntime.instance.offlineStorage
     val scope = rememberCoroutineScope()
-    val packs by manager.packs.collectAsState()
+    val managerState = manager.state.collectAsStateWithLifecycle().value
+    val packs = (managerState as? OfflineStorageState.Ready)?.packs.orEmpty()
+    var createFailed by remember { mutableStateOf(false) }
     // A pack definition now carries the pixel ratio it was downloaded at, so the tiles match this display.
     val pixelRatio = LocalDensity.current.density
 
@@ -106,31 +113,63 @@ internal fun OfflineMapsSection(target: OfflineMapTarget, onShowRegion: (Boundin
         DownloadEstimateLines(estimate = estimate, range = range)
 
         Button(
-            onClick = { scope.launch { manager.downloadVisibleArea(target, pixelRatio) } },
-            enabled = target.styleUrl != null && estimate > 0L,
+            onClick = {
+                createFailed = false
+                scope.launch { createFailed = !manager.downloadVisibleArea(target, pixelRatio) }
+            },
+            enabled = canDownloadOfflinePack(managerState is OfflineStorageState.Ready, target.styleUrl, estimate),
             modifier = Modifier.padding(vertical = 8.dp),
         ) {
             Text(text = stringResource(Res.string.map_start_download))
         }
 
-        if (packs.isEmpty()) {
+        if (createFailed) {
             Text(
-                text = stringResource(Res.string.offline_maps_empty),
+                text = stringResource(Res.string.map_offline_create_failed),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.error,
             )
-        } else {
-            packs.forEach { pack ->
-                OfflinePackRow(
-                    pack = pack,
-                    onShow = { bounds -> onShowRegion(bounds) },
-                    // Hygiene, not an ANR fix: `resume` only posts onto the offline runtime's owner thread,
-                    // taking its lock just long enough to enqueue — this dispatch merely keeps that acquisition
-                    // off the frame path.
-                    onToggle = { scope.launch(ioDispatcher) { manager.resume(pack) } },
-                    onDelete = { scope.launch { manager.delete(pack) } },
+        }
+
+        when {
+            managerState is OfflineStorageState.Loading ->
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+
+            managerState is OfflineStorageState.Failed -> {
+                Text(
+                    text = stringResource(Res.string.map_offline_unavailable),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
                 )
+                // Upstream's message, which is not ours to localise.
+                managerState.cause.message?.let { detail ->
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+
+            packs.isEmpty() ->
+                Text(
+                    text = stringResource(Res.string.offline_maps_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+            else ->
+                packs.forEach { pack ->
+                    OfflinePackRow(
+                        pack = pack,
+                        onShow = { bounds -> onShowRegion(bounds) },
+                        // Hygiene, not an ANR fix: `resume` only posts onto the offline runtime's owner thread,
+                        // taking its lock just long enough to enqueue — this dispatch merely keeps that acquisition
+                        // off the frame path.
+                        onToggle = { scope.launch(ioDispatcher) { manager.resume(pack) } },
+                        onDelete = { scope.launch { manager.delete(pack) } },
+                    )
+                }
         }
     }
 }
@@ -165,7 +204,7 @@ private fun OfflinePackRow(
     onToggle: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val progress = pack.downloadProgress.collectAsState().value
+    val progress = pack.downloadProgress.collectAsStateWithLifecycle().value
     val bounds = (pack.definition as? OfflinePackDefinition.TilePyramid)?.bounds
 
     Row(
@@ -221,9 +260,9 @@ private fun OfflinePackRow(
  * coroutine, so letting it escape takes the window's event thread down with it.
  *
  * Creates the pack only. A created pack is paused, and stays that way until the user presses play on its row —
- * [OfflineManager.resume] is deliberately not called here, so a download never starts itself.
+ * [OfflineStorage.resume] is deliberately not called here, so a download never starts itself.
  */
-private suspend fun OfflineManager.downloadVisibleArea(target: OfflineMapTarget, pixelRatio: Float): Boolean {
+private suspend fun OfflineStorage.downloadVisibleArea(target: OfflineMapTarget, pixelRatio: Float): Boolean {
     val styleUrl = target.styleUrl
     val bounds = target.bounds()
     if (styleUrl == null || bounds == null) return false
@@ -236,8 +275,8 @@ private suspend fun OfflineManager.downloadVisibleArea(target: OfflineMapTarget,
                 styleUrl = styleUrl,
                 bounds = bounds,
                 pixelRatio = pixelRatio,
-                minZoom = range.first,
-                maxZoom = range.last,
+                minZoom = range.first.toDouble(),
+                maxZoom = range.last.toDouble(),
             ),
         )
     }
@@ -249,7 +288,9 @@ private fun OfflinePack.label(): String {
     val definition = definition
     val bounds = (definition as? OfflinePackDefinition.TilePyramid)?.bounds
     val centre = bounds?.let { "${it.south.round()}, ${it.west.round()}" } ?: EM_DASH
-    return "$centre  z${definition.minZoom}–${definition.maxZoom ?: definition.minZoom}"
+    val minZoom = definition.minZoom.toInt()
+    val maxZoom = definition.maxZoom?.toInt() ?: minZoom
+    return "$centre  z$minZoom–$maxZoom"
 }
 
 private fun DownloadProgress.fraction(): Float = when (this) {
@@ -267,21 +308,20 @@ private fun DownloadProgress.fraction(): Float = when (this) {
  * One line describing a pack's state, assembled from resources rather than written in English.
  *
  * `status.name` went straight into the UI before, so every locale read the library's own enum constants. The tile count
- * and byte size reuse the strings the cache figures above already use, which keeps one set of units to translate.
+ * and byte size render as the cache figures above render them.
  */
 @Composable
 private fun DownloadProgress.summary(): String = when (this) {
     is DownloadProgress.Healthy ->
-        listOf(
-            stringResource(
-                when (status) {
-                    DownloadStatus.Paused -> Res.string.map_download_status_paused
-                    DownloadStatus.Downloading -> Res.string.map_download_status_downloading
-                    DownloadStatus.Complete -> Res.string.map_download_status_complete
-                },
-            ),
+        listOfNotNull(
+            when (status) {
+                DownloadStatus.Paused -> Res.string.map_download_status_paused
+                DownloadStatus.Downloading -> Res.string.map_download_status_downloading
+                DownloadStatus.Complete -> Res.string.map_download_status_complete
+                else -> null
+            }?.let { stringResource(it) },
             stringResource(Res.string.map_cache_tiles, completedTileCount.toInt()),
-            stringResource(Res.string.map_cache_megabytes, completedResourceBytes.megabytes()),
+            formatByteSize(completedResourceBytes),
         )
             .joinToString(SUMMARY_SEPARATOR)
 
@@ -290,16 +330,8 @@ private fun DownloadProgress.summary(): String = when (this) {
 
     is DownloadProgress.TileLimitExceeded -> stringResource(Res.string.map_tile_limit_reached, limit.toInt())
 
-    DownloadProgress.Unknown -> EM_DASH
+    else -> EM_DASH
 }
-
-/**
- * Bytes as megabytes, to one decimal place.
- *
- * Decimal megabytes rather than mebibytes: this number sits next to a phone's own storage figures, and those are
- * decimal.
- */
-internal fun Long.megabytes(): String = NumberFormatter.format(this.toDouble() / BYTES_PER_MEGABYTE, 1)
 
 private fun Double.round(): String {
     // Rounded, not truncated, so a negative coordinate labels the same way as its positive twin.
@@ -307,7 +339,6 @@ private fun Double.round(): String {
     return scaled.toString()
 }
 
-private const val BYTES_PER_MEGABYTE = 1_000_000.0
 private const val PACK_ROW_TEXT_FRACTION = 0.8f
 private const val PACK_EXTRA_ZOOM_LEVELS = 2
 

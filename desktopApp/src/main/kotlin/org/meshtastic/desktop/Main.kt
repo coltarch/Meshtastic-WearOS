@@ -17,6 +17,7 @@
 package org.meshtastic.desktop
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -51,8 +53,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
-import co.touchlab.kermit.platformLogWriter
 import coil3.ImageLoader
 import coil3.annotation.ExperimentalCoilApi
 import coil3.compose.setSingletonImageLoaderFactory
@@ -65,6 +67,7 @@ import coil3.svg.SvgDecoder
 import coil3.util.DebugLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.decodeToSvgPainter
 import org.jetbrains.compose.resources.getString
@@ -77,8 +80,9 @@ import org.koin.plugin.module.dsl.startKoin
 import org.maplibre.compose.desktop.ProvideMapPresentationHost
 import org.maplibre.compose.desktop.rememberAwtComposeMapPresentationHost
 import org.meshtastic.core.common.BuildConfigProvider
-import org.meshtastic.core.common.log.InMemoryLogBuffer
+import org.meshtastic.core.common.state.LaunchOptions
 import org.meshtastic.core.common.util.CommonUri
+import org.meshtastic.core.common.util.ioDispatcher
 import org.meshtastic.core.database.desktopDataDir
 import org.meshtastic.core.model.DeviceAddress
 import org.meshtastic.core.navigation.MultiBackstack
@@ -94,6 +98,7 @@ import org.meshtastic.core.resources.desktop_tray_tooltip
 import org.meshtastic.core.resources.desktop_update_available_message
 import org.meshtastic.core.resources.desktop_update_available_title
 import org.meshtastic.core.resources.desktop_update_download
+import org.meshtastic.core.service.MeshLogCleanup
 import org.meshtastic.core.service.MeshServiceOrchestrator
 import org.meshtastic.core.ui.theme.AppTheme
 import org.meshtastic.core.ui.util.LocalDiscoveryMapProvider
@@ -103,7 +108,9 @@ import org.meshtastic.core.ui.util.LocalMapMainScreenProvider
 import org.meshtastic.core.ui.util.LocalMapViewProvider
 import org.meshtastic.core.ui.util.LocalNodeTrackMapProvider
 import org.meshtastic.core.ui.util.LocalSitePlannerAvailable
+import org.meshtastic.core.ui.util.LocalTracerouteMapOverlayInsetsProvider
 import org.meshtastic.core.ui.util.LocalTracerouteMapProvider
+import org.meshtastic.core.ui.util.TracerouteMapOverlayInsets
 import org.meshtastic.core.ui.util.rememberOpenUrl
 import org.meshtastic.core.ui.viewmodel.UIViewModel
 import org.meshtastic.desktop.data.DesktopPreferencesDataSource
@@ -112,6 +119,11 @@ import org.meshtastic.desktop.map.DesktopTracerouteMap
 import org.meshtastic.desktop.map.desktopMapViewProvider
 import org.meshtastic.desktop.notification.DesktopOS
 import org.meshtastic.desktop.notification.NativeNotificationSender
+import org.meshtastic.desktop.tray.SniTrayEffect
+import org.meshtastic.desktop.tray.TRAY_ICON_DARK
+import org.meshtastic.desktop.tray.TRAY_ICON_LIGHT
+import org.meshtastic.desktop.tray.TrayMenuItem
+import org.meshtastic.desktop.tray.canHideToTray
 import org.meshtastic.desktop.ui.DesktopMainScreen
 import org.meshtastic.feature.map.MapScreen
 import org.meshtastic.feature.map.SharedMapViewModel
@@ -126,6 +138,12 @@ import coil3.util.Logger as CoilLogger
 /** Meshtastic Desktop — the first non-Android target for the shared KMP module graph. */
 private const val MEMORY_CACHE_MAX_BYTES = 64L * 1024L * 1024L // 64 MiB
 private const val DISK_CACHE_MAX_BYTES = 32L * 1024L * 1024L // 32 MiB
+
+/** Debug builds only: apply a `connections` deep link from the command line without the trust dialog. */
+private const val SKIP_CONNECT_CONFIRM_ARG = "--skip-connect-confirm"
+
+/** The window title, and the title the Linux tray item reports to its host. */
+private const val APP_WINDOW_TITLE = "Meshtastic Desktop"
 
 /**
  * Loads an SVG from JVM classpath resources and returns a [Painter].
@@ -156,18 +174,22 @@ fun main(args: Array<String>) {
     // No MapLibre.configure() call: the first map applies a default cache configuration process-wide.
     application(exitProcessOnExit = false) {
         val koinApp = remember {
-            // Keep console output and also capture into the in-memory buffer the Debug screen views/exports.
-            Logger.setLogWriters(listOf(platformLogWriter(), InMemoryLogBuffer))
+            installDesktopLogging(isDebug = DesktopBuildConfig.IS_DEBUG)
             Logger.i { "Meshtastic Desktop — Starting" }
             startKoin<DesktopKoinApp> {}
+                .also { app ->
+                    if (DesktopBuildConfig.IS_DEBUG && SKIP_CONNECT_CONFIRM_ARG in args) {
+                        app.koin.get<LaunchOptions>().skipDeepLinkConfirmation = true
+                    }
+                }
         }
         LaunchedEffect(Unit) { publishExitApplication(::exitApplication) }
-        val systemLocale = remember { Locale.getDefault() }
         val uiViewModel = remember { koinApp.koin.get<UIViewModel>() }
-        val httpClient = remember { koinApp.koin.get<HttpClient>() }
 
-        DeepLinkHandler(args, uiViewModel)
+        DeepLinkHandler(args, uiViewModel, remember { koinApp.koin.get<LaunchOptions>() })
         MeshServiceLifecycle()
+        // Desktop has no WorkManager, so the hourly mesh log cleanup lives as long as the application composition.
+        LaunchedEffect(Unit) { withContext(ioDispatcher) { koinApp.koin.get<MeshLogCleanup>().runHourly() } }
         ThemeAndLocaleProvider(uiViewModel)
     }
 
@@ -189,7 +211,11 @@ fun main(args: Array<String>) {
 
 /** Processes deep-link URIs from CLI arguments and OS-level URI handlers. */
 @Composable
-private fun ApplicationScope.DeepLinkHandler(args: Array<String>, uiViewModel: UIViewModel) {
+private fun ApplicationScope.DeepLinkHandler(
+    args: Array<String>,
+    uiViewModel: UIViewModel,
+    launchOptions: LaunchOptions,
+) {
     LaunchedEffect(args) {
         args.forEach { arg ->
             if (
@@ -207,6 +233,8 @@ private fun ApplicationScope.DeepLinkHandler(args: Array<String>, uiViewModel: U
     LaunchedEffect(Unit) {
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_OPEN_URI)) {
             Desktop.getDesktop().setOpenURIHandler { event ->
+                // The launch switch covers the links this process was started with, never one the OS hands over later.
+                launchOptions.skipDeepLinkConfirmation = false
                 val uriStr = event.uri.toString()
                 uiViewModel.handleDeepLink(CommonUri.parse(uriStr)) { Logger.e { "Invalid URI from OS: $uriStr" } }
             }
@@ -260,10 +288,9 @@ private fun ApplicationScope.MeshtasticDesktopApp(uiViewModel: UIViewModel, isDa
     var isWindowReady by remember { mutableStateOf(false) }
     val trayState = rememberTrayState()
     val density = LocalDensity.current
-    val appIcon = svgPainterResource("tray_icon_black.svg", density)
+    val appIcon = svgPainterResource(TRAY_ICON_DARK, density)
 
-    val trayIcon =
-        svgPainterResource(if (isSystemInDarkTheme()) "tray_icon_white.svg" else "tray_icon_black.svg", density)
+    val trayIcon = svgPainterResource(if (isSystemInDarkTheme()) TRAY_ICON_LIGHT else TRAY_ICON_DARK, density)
 
     val notificationManager = koinInject<DesktopNotificationManager>()
     val desktopPrefs = koinInject<DesktopPreferencesDataSource>()
@@ -278,31 +305,55 @@ private fun ApplicationScope.MeshtasticDesktopApp(uiViewModel: UIViewModel, isDa
 
     WindowBoundsManager(desktopPrefs, windowState) { isWindowReady = true }
 
-    Tray(
-        state = trayState,
-        icon = trayIcon,
-        tooltip = stringResource(Res.string.desktop_tray_tooltip),
-        onAction = { isAppVisible = true },
-        menu = {
-            updateInfo?.let { update ->
-                Item(
-                    stringResource(Res.string.desktop_update_download, update.versionName),
-                    onClick = { openUrl(update.releaseUrl) },
-                )
-            }
-            Item(stringResource(Res.string.desktop_tray_show), onClick = { isAppVisible = true })
-            Item(stringResource(Res.string.desktop_tray_quit), onClick = ::exitApplication)
-        },
-    )
+    // One menu model for both tray backends, so the rows cannot drift apart between platforms.
+    val trayTooltip = stringResource(Res.string.desktop_tray_tooltip)
+    val updateLabel = updateInfo?.let { stringResource(Res.string.desktop_update_download, it.versionName) }
+    val showLabel = stringResource(Res.string.desktop_tray_show)
+    val quitLabel = stringResource(Res.string.desktop_tray_quit)
+    val trayMenuItems = buildList {
+        if (updateInfo != null && updateLabel != null) {
+            add(TrayMenuItem(updateLabel) { openUrl(updateInfo.releaseUrl) })
+        }
+        add(TrayMenuItem(showLabel) { isAppVisible = true })
+        add(TrayMenuItem(quitLabel) { exitApplication() })
+    }
+
+    var isSniTrayRegistered by remember { mutableStateOf(false) }
+
+    if (DesktopOS.current() == DesktopOS.Linux) {
+        // AWT's tray is XEmbed, which GNOME and Plasma only proxy — and the proxy drops clicks. Speak
+        // StatusNotifierItem directly instead; Compose's Tray would just plant an inert icon here.
+        SniTrayEffect(
+            isDarkTheme = isSystemInDarkTheme(),
+            title = APP_WINDOW_TITLE,
+            tooltip = trayTooltip,
+            menuItems = trayMenuItems,
+            onActivate = { isAppVisible = true },
+            onRegistrationChange = { registered ->
+                isSniTrayRegistered = registered
+                // Losing the tray while hidden strands the window just as hiding into no tray would — a panel
+                // crash or a disabled extension gets there after the fact. Bring the window back so close quits.
+                if (!registered) isAppVisible = true
+            },
+        )
+    } else {
+        Tray(
+            state = trayState,
+            icon = trayIcon,
+            tooltip = trayTooltip,
+            onAction = { isAppVisible = true },
+            menu = { trayMenuItems.forEach { item -> Item(item.label, onClick = item.onClick) } },
+        )
+    }
 
     if (isWindowReady) {
         // Hide via `visible` rather than dropping the Window from composition so the UI tree
         // (navigation backstack, scroll positions) survives a hide-to-tray round trip.
         MeshtasticWindow(uiViewModel, isDarkTheme, appIcon, windowState, visible = isAppVisible) {
-            // Minimize to the tray on close — but only where a tray exists. On platforms without a
-            // system tray (e.g. some Linux desktop environments) there's nowhere to minimize to, so
-            // quit instead; otherwise the process would be stranded with no window and no tray icon.
-            if (isTraySupported) {
+            // Minimize to the tray on close — but only where the tray icon can actually be clicked
+            // back. Where it cannot, there is nowhere to minimize to, so quit instead; otherwise the
+            // process is stranded with no window, no reachable tray menu and no key handler either.
+            if (canHideToTray(awtTraySupported = isTraySupported, sniTrayRegistered = isSniTrayRegistered)) {
                 isAppVisible = false
             } else {
                 exitApplication()
@@ -353,6 +404,7 @@ private fun WindowBoundsManager(
     windowState: WindowState,
     onReady: () -> Unit,
 ) {
+    val currentOnReady by rememberUpdatedState(onReady)
     LaunchedEffect(Unit) {
         val initialWidth = desktopPrefs.windowWidth.first()
         val initialHeight = desktopPrefs.windowHeight.first()
@@ -367,7 +419,7 @@ private fun WindowBoundsManager(
                 WindowPosition(Alignment.Center)
             }
 
-        onReady()
+        currentOnReady()
 
         snapshotFlow {
             val x = if (windowState.position.isSpecified) windowState.position.x.value else Float.NaN
@@ -406,13 +458,13 @@ private fun ApplicationScope.MeshtasticWindow(
 
     Window(
         onCloseRequest = onCloseRequest,
-        title = "Meshtastic Desktop",
+        title = APP_WINDOW_TITLE,
         icon = appIcon,
         state = windowState,
         visible = visible,
         onPreviewKeyEvent = { event -> handleKeyboardShortcut(event, multiBackstack, ::exitApplication) },
     ) {
-        val eventEdition by uiViewModel.eventEdition.collectAsState()
+        val eventEdition by uiViewModel.eventEdition.collectAsStateWithLifecycle()
 
         CoilImageLoaderSetup()
         // Each window hands MapLibre its own GPU context; the map composites into Compose from there.
@@ -436,13 +488,14 @@ private fun ApplicationScope.MeshtasticWindow(
                     },
                 LocalInlineMapProvider provides { node, modifier -> MapLibreInlineMap(node, modifier) },
                 LocalNodeTrackMapProvider provides
-                    { destNum, positions, modifier, selectedPositionTime, onPositionSelect ->
+                    { destNum, positions, modifier, selectedPositionTime, onPositionSelect, showAttribution ->
                         MapLibreNodeTrackMap(
                             destNum = destNum,
                             positions = positions,
                             modifier = modifier,
                             selectedPositionTime = selectedPositionTime,
                             onPositionSelect = onPositionSelect,
+                            showAttribution = showAttribution,
                         )
                     },
                 LocalDiscoveryMapProvider provides
@@ -453,6 +506,9 @@ private fun ApplicationScope.MeshtasticWindow(
                     { overlay, nodePositions, onMappableCountChanged, modifier ->
                         DesktopTracerouteMap(overlay, nodePositions, onMappableCountChanged, modifier)
                     },
+                // Clear of the MapLibre logo and attribution row along the bottom edge.
+                LocalTracerouteMapOverlayInsetsProvider provides
+                    TracerouteMapOverlayInsets(overlayPadding = PaddingValues(bottom = 48.dp)),
             ) {
                 AppTheme(darkTheme = isDarkTheme) { DesktopMainScreen(uiViewModel, multiBackstack) }
             }

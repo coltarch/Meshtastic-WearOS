@@ -50,12 +50,12 @@ internal fun rememberRestoredCamera(): RestoredCamera? {
     val mapPrefs: MapPrefs = koinInject()
     var restored by remember { mutableStateOf<RestoredCamera?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(mapPrefs) {
         val saved = mapPrefs.awaitCameraPosition()
         restored =
             RestoredCamera(
                 saved?.let {
-                    CameraPosition(target = Position(longitude = it.longitude, latitude = it.latitude), zoom = it.zoom)
+                    CameraPosition(center = Position(longitude = it.longitude, latitude = it.latitude), zoom = it.zoom)
                 },
             )
     }
@@ -80,8 +80,8 @@ internal fun SaveCameraPosition(mapState: MapState) {
             .collect { position ->
                 mapPrefs.setCameraPosition(
                     MapCameraPosition(
-                        latitude = position.target.latitude,
-                        longitude = position.target.longitude,
+                        latitude = position.center.latitude,
+                        longitude = position.center.longitude,
                         zoom = position.zoom,
                     ),
                 )

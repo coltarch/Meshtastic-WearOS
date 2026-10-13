@@ -88,6 +88,8 @@ sealed interface NodeDetailRoute : Route {
     @Serializable data class AirQualityMetrics(val destNum: Int) : NodeDetailRoute
 
     @Serializable data class NeighborInfoLog(val destNum: Int) : NodeDetailRoute
+
+    @Serializable data class RemoteShell(val destNum: Int) : NodeDetailRoute
 }
 
 @Serializable
@@ -201,6 +203,9 @@ sealed interface FirmwareRoute : Route {
     @Serializable data object FirmwareGraph : FirmwareRoute, Graph
 
     @Serializable data object FirmwareUpdate : FirmwareRoute
+
+    /** Chirpy Hop on its own, reached from Settings once the version-row easter egg is unlocked. */
+    @Serializable data object ChirpyHop : FirmwareRoute
 }
 
 @Serializable

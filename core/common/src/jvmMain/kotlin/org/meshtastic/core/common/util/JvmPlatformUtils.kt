@@ -14,6 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@file:Suppress("MatchingDeclarationName")
+
 package org.meshtastic.core.common.util
 
 import java.net.InetAddress
@@ -23,12 +25,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.abs
 
-actual object BuildUtils {
-    actual val isEmulator: Boolean = false
-
-    actual val sdkInt: Int = 0
-}
-
+@Suppress("ImplicitDefaultLocale") // every formatter goes through localized(), which binds the locale explicitly
 actual object DateFormatter {
     private val zoneId: ZoneId = ZoneId.systemDefault()
     private val shortTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
@@ -108,11 +105,7 @@ actual fun currentLocaleCode(): String = Locale.getDefault().language
 
 actual fun currentRegionCode(): String = Locale.getDefault().country
 
-actual fun currentLocaleQualifier(): String {
-    val locale = Locale.getDefault()
-    val country = locale.country
-    return if (country.isNotEmpty()) "${locale.language}-r$country" else locale.language
-}
+actual fun currentLocaleTag(): String = Locale.getDefault().toLanguageTag()
 
 actual fun String?.isValidAddress(): Boolean {
     val value = this?.trim()

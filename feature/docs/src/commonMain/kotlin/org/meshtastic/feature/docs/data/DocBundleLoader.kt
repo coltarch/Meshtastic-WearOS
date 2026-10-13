@@ -16,11 +16,12 @@
  */
 package org.meshtastic.feature.docs.data
 
+import kotlinx.coroutines.CancellationException
 import meshtasticandroid.feature.docs.generated.resources.Res
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.koin.core.annotation.Single
-import org.meshtastic.core.common.util.currentLocaleQualifier
+import org.meshtastic.core.common.util.currentLocaleTag
 import org.meshtastic.core.resources.doc_keywords_app_functions
 import org.meshtastic.core.resources.doc_keywords_connections
 import org.meshtastic.core.resources.doc_keywords_debug_logs
@@ -33,6 +34,7 @@ import org.meshtastic.core.resources.doc_keywords_messages
 import org.meshtastic.core.resources.doc_keywords_mqtt
 import org.meshtastic.core.resources.doc_keywords_node_metrics
 import org.meshtastic.core.resources.doc_keywords_nodes
+import org.meshtastic.core.resources.doc_keywords_notifications
 import org.meshtastic.core.resources.doc_keywords_onboarding
 import org.meshtastic.core.resources.doc_keywords_settings_module
 import org.meshtastic.core.resources.doc_keywords_settings_radio
@@ -54,6 +56,7 @@ import org.meshtastic.core.resources.doc_title_messages
 import org.meshtastic.core.resources.doc_title_mqtt
 import org.meshtastic.core.resources.doc_title_node_metrics
 import org.meshtastic.core.resources.doc_title_nodes
+import org.meshtastic.core.resources.doc_title_notifications
 import org.meshtastic.core.resources.doc_title_onboarding
 import org.meshtastic.core.resources.doc_title_settings_module
 import org.meshtastic.core.resources.doc_title_settings_radio
@@ -147,13 +150,13 @@ class DefaultDocBundleLoader : DocBundleLoader {
                 DocSection.UserGuide -> "user"
                 DocSection.DeveloperGuide -> "developer"
             }
-        // Try qualifiers in specificity order (mirrors Android resource resolution):
-        // "pt-rBR" → "pt" → give up
         for (qualifier in localeQualifiers(locale)) {
             val localePath = "files/$qualifier/docs/$section/${page.id}.md"
             try {
                 val bytes = Res.readBytes(localePath)
                 return stripFrontmatter(bytes.decodeToString())
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 continue
             }
@@ -174,23 +177,16 @@ class DefaultDocBundleLoader : DocBundleLoader {
             try {
                 Res.readBytes(localePath)
                 true
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 false
             }
         }
     }
 
-    /**
-     * Produces CMP resource qualifier candidates in specificity order. Tries region-qualified first (e.g. "pt-rBR"),
-     * then language-only ("pt"). Deduplicates when device has no region (both would be "fr").
-     */
-    private fun localeQualifiers(language: String): List<String> {
-        val fullQualifier = currentLocaleQualifier()
-        return buildList {
-            if (fullQualifier != language) add(fullQualifier)
-            add(language)
-        }
-    }
+    private fun localeQualifiers(language: String): List<String> =
+        (docLocaleCandidates(currentLocaleTag()) + docLocaleCandidates(language)).distinct()
 
     private suspend fun loadMarkdownContent(page: DocPage): String {
         val section =
@@ -204,6 +200,8 @@ class DefaultDocBundleLoader : DocBundleLoader {
             val bytes = Res.readBytes(resourcePath)
             val raw = bytes.decodeToString()
             stripFrontmatter(raw)
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             "# ${page.title}\n\nContent not available. The documentation file could not be loaded."
         }
@@ -281,7 +279,7 @@ class DefaultDocBundleLoader : DocBundleLoader {
                 CoreRes.string.doc_keywords_nodes,
                 "en/user/nodes.html",
                 4,
-                listOf("node-list", "mesh-nodes", "peers", "hop-histogram"),
+                listOf("node-list", "mesh-nodes", "peers", "hop-histogram", "remote-shell", "terminal"),
                 3800,
                 "nodes",
             ),
@@ -422,6 +420,16 @@ class DefaultDocBundleLoader : DocBundleLoader {
                 listOf("translate", "crowdin", "localization", "language", "i18n", "contribute"),
                 3700,
                 "translate",
+            ),
+            UserPageDef(
+                "notifications",
+                CoreRes.string.doc_title_notifications,
+                CoreRes.string.doc_keywords_notifications,
+                "en/user/notifications.html",
+                18,
+                listOf("notifications", "notification-channels", "wear-os", "smartwatch"),
+                3600,
+                "notifications",
             ),
             UserPageDef(
                 "app-functions",
@@ -620,3 +628,26 @@ class DefaultDocBundleLoader : DocBundleLoader {
         iconId = iconId,
     )
 }
+
+/**
+ * The docs directories a BCP 47 [tag] can read, most specific first: `b+sr+Latn`, then `sr-rRS`, then `sr`. Directory
+ * names follow the `values-*` ones Crowdin writes, so the language-only entry is what most locales resolve to.
+ */
+internal fun docLocaleCandidates(tag: String): List<String> {
+    val subtags = tag.split('-', '_').filter { it.isNotEmpty() }
+    val language = subtags.firstOrNull()?.lowercase()?.let { LEGACY_LANGUAGE_CODES[it] ?: it } ?: return emptyList()
+    val rest = subtags.drop(1)
+    val script = rest.firstOrNull { it.length == SCRIPT_LENGTH && it.all(Char::isLetter) }
+    val region = rest.firstOrNull { it.length == REGION_LENGTH && it.all(Char::isLetter) }
+    return buildList {
+        if (script != null) add("b+$language+${script.lowercase().replaceFirstChar(Char::uppercaseChar)}")
+        if (region != null) add("$language-r${region.uppercase()}")
+        add(language)
+    }
+}
+
+private const val SCRIPT_LENGTH = 4
+private const val REGION_LENGTH = 2
+
+// Older Android and JDK builds report these retired ISO 639 codes; the directories use the current ones.
+private val LEGACY_LANGUAGE_CODES = mapOf("iw" to "he", "in" to "id", "ji" to "yi")

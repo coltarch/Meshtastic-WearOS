@@ -19,6 +19,7 @@ package org.meshtastic.feature.settings.radio.component
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,14 +34,21 @@ import org.meshtastic.core.model.ChannelOption
 import org.meshtastic.core.model.RegionInfo
 import org.meshtastic.core.model.RegionPresetConstraint
 import org.meshtastic.core.model.constraintFor
+import org.meshtastic.core.model.normalizeCodingRateOverride
 import org.meshtastic.core.model.numChannels
 import org.meshtastic.core.model.presetForRegionChange
+import org.meshtastic.core.model.schemaLabelRes
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.advanced
 import org.meshtastic.core.resources.bandwidth_default
 import org.meshtastic.core.resources.bandwidth_option_khz
 import org.meshtastic.core.resources.bandwidth_unsupported
 import org.meshtastic.core.resources.bandwidth_unsupported_summary
+import org.meshtastic.core.resources.config_lora_coding_rate_fraction
+import org.meshtastic.core.resources.config_lora_coding_rate_override
+import org.meshtastic.core.resources.config_lora_coding_rate_override_max_summary
+import org.meshtastic.core.resources.config_lora_coding_rate_override_summary
+import org.meshtastic.core.resources.config_lora_coding_rate_preset_default
 import org.meshtastic.core.resources.config_lora_modem_preset_licensed_summary
 import org.meshtastic.core.resources.config_lora_modem_preset_summary
 import org.meshtastic.core.resources.config_lora_region_summary
@@ -70,6 +78,7 @@ import org.meshtastic.core.resources.schema_lora_tx_power
 import org.meshtastic.core.resources.schema_lora_tx_power_description
 import org.meshtastic.core.resources.schema_lora_use_preset
 import org.meshtastic.core.resources.schema_lora_use_preset_description
+import org.meshtastic.core.resources.slot_auto
 import org.meshtastic.core.ui.component.DropDownItem
 import org.meshtastic.core.ui.component.DropDownPreference
 import org.meshtastic.core.ui.component.EditTextPreference
@@ -101,18 +110,20 @@ internal fun buildPresetItems(
     presetsGated: Boolean,
     selectedPreset: ModemPreset,
     capabilities: Capabilities,
+    labels: Map<ModemPreset, String>,
 ): List<DropDownItem<ModemPreset>> {
+    fun labelOf(preset: ModemPreset) = labels[preset] ?: preset.name
     val items =
         ChannelOption.entries
             .filter { option -> capabilities.supportsPreset(option) }
             .filter { option -> presetConstraint == null || option.modemPreset in presetConstraint.presets }
             .map { option ->
-                DropDownItem(value = option.modemPreset, label = option.modemPreset.name, enabled = !presetsGated)
+                DropDownItem(value = option.modemPreset, label = labelOf(option.modemPreset), enabled = !presetsGated)
             }
     return if (items.any { it.value == selectedPreset }) {
         items
     } else {
-        items + DropDownItem(value = selectedPreset, label = selectedPreset.name, enabled = false)
+        items + DropDownItem(value = selectedPreset, label = labelOf(selectedPreset), enabled = false)
     }
 }
 
@@ -120,10 +131,22 @@ internal fun buildPresetItems(
  * Builds the region dropdown items: hide regions the target firmware's region table doesn't have yet
  * ([Capabilities.supportsRegion]), but never hide the device's current selection.
  */
-private fun buildRegionItems(capabilities: Capabilities, selectedRegion: RegionCode): List<Pair<RegionCode, String>> =
-    RegionInfo.entries
-        .filter { capabilities.supportsRegion(it) || it.regionCode == selectedRegion }
-        .map { it.regionCode to it.description }
+private fun buildRegionItems(
+    capabilities: Capabilities,
+    selectedRegion: RegionCode,
+    labels: Map<RegionCode, String>,
+): List<Pair<RegionCode, String>> = RegionInfo.entries
+    .filter { capabilities.supportsRegion(it) || it.regionCode == selectedRegion }
+    .map { it.regionCode to (labels[it.regionCode] ?: it.description) }
+
+/** Each preset's schema label in the user's language. A preset the schema does not label is absent. */
+@Composable
+internal fun presetLabels(): Map<ModemPreset, String> =
+    ModemPreset.entries.mapNotNull { preset -> preset.schemaLabelRes()?.let { preset to stringResource(it) } }.toMap()
+
+@Composable
+private fun regionLabels(): Map<RegionCode, String> =
+    RegionCode.entries.mapNotNull { region -> region.schemaLabelRes()?.let { region to stringResource(it) } }.toMap()
 
 @Composable
 fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
@@ -145,8 +168,9 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
     }
 
     val formState = rememberConfigState(initialValue = loraConfig)
+    val capabilities = remember(state.metadata?.firmware_version) { Capabilities(state.metadata?.firmware_version) }
 
-    val primaryChannel = remember(formState.value) { Channel(primarySettings, formState.value) }
+    val primaryChannel = remember(primarySettings, formState.value) { Channel(primarySettings, formState.value) }
     val focusManager = LocalFocusManager.current
     val bandwidthSelection =
         loRaBandwidthSelection(
@@ -166,7 +190,7 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
         responseState = state.responseState,
         onDismissPacketResponse = viewModel::clearPacketResponse,
         onSave = {
-            val config = Config.Builder().also { wb -> wb.lora = it }.build()
+            val config = Config.Builder().also { wb -> wb.lora = it.withCodingRateOverrideFor(capabilities) }.build()
             viewModel.setConfig(config)
         },
     ) {
@@ -176,8 +200,6 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 // instance, so the locally-cached map (from our own handshake) is reused for remote admin too. Gated
                 // on the *target* node's firmware capability (metadata is per-target): pre-2.8 nodes don't get the
                 // map or the new TINY presets, which also keeps older remotes unconstrained.
-                val capabilities =
-                    remember(state.metadata?.firmware_version) { Capabilities(state.metadata?.firmware_version) }
                 val regionPresetMap = if (capabilities.supportsLoraRegionPresetMap) state.loraRegionPresetMap else null
                 val presetConstraint =
                     remember(regionPresetMap, formState.value.region) {
@@ -193,8 +215,10 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                     summary = stringResource(Res.string.config_lora_region_summary),
                     enabled = state.connected,
                     items =
-                    remember(capabilities, formState.value.region) {
-                        buildRegionItems(capabilities, formState.value.region)
+                    regionLabels().let { labels ->
+                        remember(capabilities, formState.value.region, labels) {
+                            buildRegionItems(capabilities, formState.value.region, labels)
+                        }
                     },
                     selectedItem = formState.value.region,
                     onItemSelected = { region ->
@@ -214,6 +238,7 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                                     wb.modem_preset = preset
                                 }
                                 .build()
+                                .withCodingRateOverrideFor(capabilities)
                     },
                 )
                 HorizontalDivider()
@@ -233,9 +258,10 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                     // unconstrained, so show every preset. Licensed-only regions disable their presets unless the
                     // device is flagged as a licensed operator (R8).
                     val selectedPreset = formState.value.modem_preset
+                    val labels = presetLabels()
                     val presetItems =
-                        remember(presetConstraint, presetsGated, selectedPreset, capabilities) {
-                            buildPresetItems(presetConstraint, presetsGated, selectedPreset, capabilities)
+                        remember(presetConstraint, presetsGated, selectedPreset, capabilities, labels) {
+                            buildPresetItems(presetConstraint, presetsGated, selectedPreset, capabilities, labels)
                         }
                     DropDownPreference(
                         title = stringResource(Res.string.schema_lora_modem_preset),
@@ -249,9 +275,22 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                         items = presetItems,
                         selectedItem = formState.value.modem_preset,
                         onItemSelected = {
-                            formState.value = formState.value.newBuilder().also { wb -> wb.modem_preset = it }.build()
+                            formState.value =
+                                formState.value
+                                    .newBuilder()
+                                    .also { wb -> wb.modem_preset = it }
+                                    .build()
+                                    .withCodingRateOverrideFor(capabilities)
                         },
                     )
+                    if (capabilities.supportsCodingRateOverride) {
+                        HorizontalDivider()
+                        CodingRateOverridePreference(
+                            config = formState.value,
+                            enabled = state.connected,
+                            onConfigChange = { formState.value = it },
+                        )
+                    }
                 } else {
                     ManualModemSettings(
                         config = formState.value,
@@ -337,6 +376,16 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                     enabled = state.connected,
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     onFocusChanged = { isFocusedSlot = it.isFocused },
+                    trailingIcon =
+                    if (
+                        !isFocusedSlot &&
+                        formState.value.channel_num == 0 &&
+                        formState.value.override_frequency == 0f
+                    ) {
+                        { Text(stringResource(Res.string.slot_auto)) }
+                    } else {
+                        null
+                    },
                     onValueChanged = {
                         if (it <= formState.value.numChannels) { // total num of LoRa channels
                             formState.value = formState.value.newBuilder().also { wb -> wb.channel_num = it }.build()
@@ -368,6 +417,12 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                     enabled = state.connected,
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     onFocusChanged = { isFocusedOverride = it.isFocused },
+                    trailingIcon =
+                    if (!isFocusedOverride && formState.value.override_frequency == 0f) {
+                        { Text(stringResource(Res.string.slot_auto)) }
+                    } else {
+                        null
+                    },
                     onValueChanged = {
                         formState.value = formState.value.newBuilder().also { wb -> wb.override_frequency = it }.build()
                     },
@@ -399,6 +454,46 @@ fun LoRaConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
             }
         }
     }
+}
+
+private fun Config.LoRaConfig.withCodingRateOverrideFor(capabilities: Capabilities): Config.LoRaConfig =
+    if (capabilities.supportsCodingRateOverride) normalizeCodingRateOverride() else this
+
+/**
+ * Raises the preset's coding rate without leaving the preset (design#161). Only rates above the preset's own are
+ * offered, since firmware ignores anything lower, and "Preset default" is written as 0.
+ */
+@Composable
+private fun CodingRateOverridePreference(
+    config: Config.LoRaConfig,
+    enabled: Boolean,
+    onConfigChange: (Config.LoRaConfig) -> Unit,
+) {
+    val preset = ChannelOption.from(config.modem_preset) ?: return
+    val atMax = preset.codingRateOverrides.isEmpty()
+    val presetDefault =
+        stringResource(
+            Res.string.config_lora_coding_rate_preset_default,
+            stringResource(Res.string.config_lora_coding_rate_fraction, preset.codingRate),
+        )
+    val items =
+        listOf(DropDownItem(value = 0, label = presetDefault)) +
+            preset.codingRateOverrides.map { rate ->
+                DropDownItem(value = rate, label = stringResource(Res.string.config_lora_coding_rate_fraction, rate))
+            }
+    DropDownPreference(
+        title = stringResource(Res.string.config_lora_coding_rate_override),
+        summary =
+        if (atMax) {
+            stringResource(Res.string.config_lora_coding_rate_override_max_summary)
+        } else {
+            stringResource(Res.string.config_lora_coding_rate_override_summary)
+        },
+        enabled = enabled && !atMax,
+        items = items,
+        selectedItem = preset.codingRateOverride(config.coding_rate),
+        onItemSelected = { onConfigChange(config.newBuilder().also { wb -> wb.coding_rate = it }.build()) },
+    )
 }
 
 @Composable

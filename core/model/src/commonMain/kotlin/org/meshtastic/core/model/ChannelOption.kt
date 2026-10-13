@@ -23,11 +23,14 @@ import org.meshtastic.proto.Config.LoRaConfig.ModemPreset
 import org.meshtastic.proto.Config.LoRaConfig.RegionCode
 import kotlin.math.round
 
-/** hash a string into an integer using the djb2 algorithm by Dan Bernstein http://www.cse.yorku.ca/~oz/hash.html */
-private fun hash(name: String): UInt { // using UInt instead of Long to match RadioInterface.cpp results
+/**
+ * djb2 over the name's UTF-8 bytes, matching firmware `RadioInterface.cpp` `hash()`; hashing UTF-16 chars gives a
+ * different slot for any non-ASCII name.
+ */
+private fun hash(name: String): UInt {
     var hash = 5381u
-    for (c in name) {
-        hash += (hash shl 5) + c.code.toUInt()
+    for (b in name.encodeToByteArray()) {
+        hash += (hash shl 5) + b.toUByte().toUInt()
     }
     return hash
 }
@@ -102,9 +105,24 @@ internal fun LoRaConfig.radioFreq(channelNum: Int): Float {
     val regionInfo = RegionInfo.fromRegionCode(region)
     return if (regionInfo != null) {
         (regionInfo.freqStart + bandwidth(regionInfo) / 2 + regionInfo.padding) +
-            (channelNum - 1) * freqSlotWidth(regionInfo)
+            (channelNum - 1) * freqSlotWidth(regionInfo) +
+            frequency_offset
     } else {
         0f
+    }
+}
+
+/**
+ * With `use_preset` on, keeps `coding_rate` only while it raises the preset's own coding rate, and stores 0 ("use the
+ * preset's") otherwise, so a value firmware ignores never sits in the config looking like it applies. A manual config,
+ * or a preset with no [ChannelOption], comes back unchanged.
+ */
+fun LoRaConfig.normalizeCodingRateOverride(): LoRaConfig {
+    val normalized = ChannelOption.from(modem_preset)?.takeIf { use_preset }?.codingRateOverride(coding_rate)
+    return if (normalized == null || normalized == coding_rate) {
+        this
+    } else {
+        newBuilder().also { wb -> wb.coding_rate = normalized }.build()
     }
 }
 
@@ -309,7 +327,7 @@ enum class RegionInfo(
      *
      * @see [Firmware Issue #7204](https://github.com/meshtastic/firmware/issues/7204)
      */
-    KZ_863(RegionCode.KZ_863, "Kazakhstan 863MHz", 863.0f, 868.0f, wideLora = true),
+    KZ_863(RegionCode.KZ_863, "Kazakhstan 863MHz", 863.0f, 868.0f),
 
     /**
      * Nepal 865Mhz 865 - 868 Mhz
@@ -464,6 +482,8 @@ enum class ChannelOption(
     val modemPreset: ModemPreset,
     val bandwidth: Float,
     val spreadingFactor: Int,
+    /** The coding-rate denominator the preset uses, 5 through 8 for 4/5 through 4/8. */
+    val codingRate: Int,
     val minFirmware: DeviceVersion? = null,
 ) {
     // Grouped by range and speed for better readability.
@@ -472,26 +492,26 @@ enum class ChannelOption(
     // older firmware silently falls back to LONG_FAST when sent an unknown preset.
 
     // Historical parameters for firmware predating the removal of VERY_LONG_SLOW.
-    VERY_LONG_SLOW(ModemPreset.VERY_LONG_SLOW, 0.0625f, spreadingFactor = 12),
-    LONG_TURBO(ModemPreset.LONG_TURBO, 0.500f, spreadingFactor = 11, minFirmware = FIRMWARE_2_7_17),
-    LONG_FAST(ModemPreset.LONG_FAST, 0.250f, spreadingFactor = 11),
-    LONG_MODERATE(ModemPreset.LONG_MODERATE, 0.125f, spreadingFactor = 11),
-    LONG_SLOW(ModemPreset.LONG_SLOW, 0.125f, spreadingFactor = 12),
-    MEDIUM_FAST(ModemPreset.MEDIUM_FAST, 0.250f, spreadingFactor = 9),
-    MEDIUM_SLOW(ModemPreset.MEDIUM_SLOW, 0.250f, spreadingFactor = 10),
-    MEDIUM_TURBO(ModemPreset.MEDIUM_TURBO, 0.500f, spreadingFactor = 9, minFirmware = FIRMWARE_2_8),
-    SHORT_FAST(ModemPreset.SHORT_FAST, 0.250f, spreadingFactor = 7),
-    SHORT_SLOW(ModemPreset.SHORT_SLOW, 0.250f, spreadingFactor = 8),
-    SHORT_TURBO(ModemPreset.SHORT_TURBO, 0.500f, spreadingFactor = 7),
-    LITE_FAST(ModemPreset.LITE_FAST, 0.125f, spreadingFactor = 9, minFirmware = FIRMWARE_2_8),
-    LITE_SLOW(ModemPreset.LITE_SLOW, 0.125f, spreadingFactor = 10, minFirmware = FIRMWARE_2_8),
-    NARROW_FAST(ModemPreset.NARROW_FAST, 0.0625f, spreadingFactor = 7, minFirmware = FIRMWARE_2_8),
-    NARROW_SLOW(ModemPreset.NARROW_SLOW, 0.0625f, spreadingFactor = 8, minFirmware = FIRMWARE_2_8),
+    VERY_LONG_SLOW(ModemPreset.VERY_LONG_SLOW, 0.0625f, spreadingFactor = 12, codingRate = 8),
+    LONG_TURBO(ModemPreset.LONG_TURBO, 0.500f, spreadingFactor = 11, codingRate = 8, minFirmware = FIRMWARE_2_7_17),
+    LONG_FAST(ModemPreset.LONG_FAST, 0.250f, spreadingFactor = 11, codingRate = 5),
+    LONG_MODERATE(ModemPreset.LONG_MODERATE, 0.125f, spreadingFactor = 11, codingRate = 8),
+    LONG_SLOW(ModemPreset.LONG_SLOW, 0.125f, spreadingFactor = 12, codingRate = 8),
+    MEDIUM_FAST(ModemPreset.MEDIUM_FAST, 0.250f, spreadingFactor = 9, codingRate = 5),
+    MEDIUM_SLOW(ModemPreset.MEDIUM_SLOW, 0.250f, spreadingFactor = 10, codingRate = 5),
+    MEDIUM_TURBO(ModemPreset.MEDIUM_TURBO, 0.500f, spreadingFactor = 9, codingRate = 5, minFirmware = FIRMWARE_2_8),
+    SHORT_FAST(ModemPreset.SHORT_FAST, 0.250f, spreadingFactor = 7, codingRate = 5),
+    SHORT_SLOW(ModemPreset.SHORT_SLOW, 0.250f, spreadingFactor = 8, codingRate = 5),
+    SHORT_TURBO(ModemPreset.SHORT_TURBO, 0.500f, spreadingFactor = 7, codingRate = 5),
+    LITE_FAST(ModemPreset.LITE_FAST, 0.125f, spreadingFactor = 9, codingRate = 5, minFirmware = FIRMWARE_2_8),
+    LITE_SLOW(ModemPreset.LITE_SLOW, 0.125f, spreadingFactor = 10, codingRate = 5, minFirmware = FIRMWARE_2_8),
+    NARROW_FAST(ModemPreset.NARROW_FAST, 0.0625f, spreadingFactor = 7, codingRate = 6, minFirmware = FIRMWARE_2_8),
+    NARROW_SLOW(ModemPreset.NARROW_SLOW, 0.0625f, spreadingFactor = 8, codingRate = 6, minFirmware = FIRMWARE_2_8),
 
     // 15.625 kHz LoRa bandwidth (firmware modemPresetToParams; the proto's "20kHz" is the
     // padded channel spacing, not the modem bandwidth used for numChannels/radioFreq math).
-    TINY_FAST(ModemPreset.TINY_FAST, 0.015625f, spreadingFactor = 7, minFirmware = FIRMWARE_2_8),
-    TINY_SLOW(ModemPreset.TINY_SLOW, 0.015625f, spreadingFactor = 8, minFirmware = FIRMWARE_2_8),
+    TINY_FAST(ModemPreset.TINY_FAST, 0.015625f, spreadingFactor = 7, codingRate = 5, minFirmware = FIRMWARE_2_8),
+    TINY_SLOW(ModemPreset.TINY_SLOW, 0.015625f, spreadingFactor = 8, codingRate = 6, minFirmware = FIRMWARE_2_8),
     ;
 
     // Semtech demodulation floor: -7.5 dB at SF7, improving 2.5 dB per SF step.
@@ -499,7 +519,24 @@ enum class ChannelOption(
     val snrLimit: Float
         get() = SNR_FLOOR_SF7_DB - SNR_FLOOR_PER_SF_DB * (spreadingFactor - MIN_SPREADING_FACTOR)
 
+    /**
+     * The coding rates `coding_rate` can raise this preset to while `use_preset` is on. Firmware applies it over the
+     * preset only when it is higher than [codingRate] ([Capabilities.supportsCodingRateOverride]), so nothing at or
+     * below that is offered, and a preset already at 4/8 has none.
+     */
+    val codingRateOverrides: IntRange
+        get() = (codingRate + 1)..MAX_CODING_RATE
+
+    /** [stored] as firmware applies it over this preset: the override while it raises [codingRate], else 0. */
+    fun codingRateOverride(stored: Int): Int = if (stored in codingRateOverrides) stored else 0
+
+    /** The coding rate the radio uses on this preset with [stored] in `coding_rate`. */
+    fun effectiveCodingRate(stored: Int): Int = codingRateOverride(stored).takeIf { it != 0 } ?: codingRate
+
     companion object {
+        /** The most redundant LoRa coding rate, 4/8. */
+        const val MAX_CODING_RATE = 8
+
         /** SF7's demodulation floor, the anchor for [snrLimit]. */
         private const val SNR_FLOOR_SF7_DB = -7.5f
 

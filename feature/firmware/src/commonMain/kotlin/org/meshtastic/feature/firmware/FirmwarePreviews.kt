@@ -28,6 +28,9 @@ import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.UiText
 import org.meshtastic.core.resources.firmware_maintenance_wrong_destination
 import org.meshtastic.core.ui.theme.AppTheme
+import org.meshtastic.feature.firmware.game.ChirpyHopContent
+import org.meshtastic.feature.firmware.game.ChirpyHopUpdatePhase
+import org.meshtastic.feature.firmware.game.ChirpyHopUpdateStatus
 
 // These previews intentionally wrap-content (no fillMaxSize) so the generated reference images are tight crops of
 // the status block — the docs reference the status component itself, not the whole screen. See docs/assets/screenshots.
@@ -92,7 +95,43 @@ internal fun UsbMaintenanceCardPreview() {
     AppTheme {
         Surface {
             Column(modifier = Modifier.padding(24.dp)) {
-                UsbMaintenanceCard(deviceName = "RAK4631", onBootloaderUpgrade = {})
+                UsbMaintenanceCard(
+                    deviceName = "RAK4631",
+                    latestBootloader = "0.9.2-OTAFIX2.5",
+                    onBootloaderUpgrade = {},
+                )
+            }
+        }
+    }
+}
+
+@PreviewLightDark
+@Composable
+internal fun BootloaderReviewPreview() {
+    AppTheme {
+        Surface {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                BootloaderReviewState(
+                    versions = BootloaderVersions(installed = "0.9.2-OTAFIX2.3-BP1.5", available = "0.9.2-OTAFIX2.5"),
+                    onUpgrade = {},
+                    onSkip = {},
+                )
+            }
+        }
+    }
+}
+
+@PreviewLightDark
+@Composable
+internal fun BootloaderUpToDatePreview() {
+    AppTheme {
+        Surface {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                BootloaderReviewState(
+                    versions = BootloaderVersions(installed = "0.9.2-OTAFIX2.5", available = "0.9.2-OTAFIX2.5"),
+                    onUpgrade = {},
+                    onSkip = {},
+                )
             }
         }
     }
@@ -134,5 +173,33 @@ internal fun AwaitingEraseFileSavePreview() {
                 )
             }
         }
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun ChirpyHopPreview() {
+    AppTheme {
+        ChirpyHopContent(
+            status =
+            ChirpyHopUpdateStatus(ChirpyHopUpdatePhase.Active, UiText.DynamicString("Uploading firmware"), 0.42f),
+            bestScore = 27,
+            onScore = {},
+            onClose = {},
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun ChirpyHopFinishedPreview() {
+    AppTheme {
+        ChirpyHopContent(
+            status =
+            ChirpyHopUpdateStatus(ChirpyHopUpdatePhase.Complete, UiText.DynamicString("Update Successful!"), 1f),
+            bestScore = 27,
+            onScore = {},
+            onClose = {},
+        )
     }
 }

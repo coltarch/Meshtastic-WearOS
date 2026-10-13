@@ -17,6 +17,8 @@
 package org.meshtastic.core.repository
 
 import org.meshtastic.core.model.ConnectionState
+import org.meshtastic.core.model.FirmwareUpdateNotice
+import org.meshtastic.core.model.MeshBeaconOffer
 import org.meshtastic.core.model.Node
 import org.meshtastic.proto.ClientNotification
 import org.meshtastic.proto.Telemetry
@@ -24,13 +26,13 @@ import org.meshtastic.proto.Telemetry
 const val SERVICE_NOTIFY_ID = 101
 
 /**
- * Mesh-domain notification builder. Provides high-level operations for the message arrival, waypoint, reaction, new
- * node, low-battery, and client notification flows specific to this app. Implementations are expected to render the
- * platform notification themselves; the generic dispatch primitive is [NotificationManager] (which posts/cancels opaque
- * [Notification] records and is *not* domain-aware).
+ * The one notification API for shared code: every notification the app posts or cancels goes through here, and each
+ * platform renders it with its own channels, styles and tap targets. [NotificationManager] is the desktop's dispatch
+ * primitive underneath its implementation, not a second way in.
  */
 @Suppress("TooManyFunctions")
 interface MeshNotificationManager {
+    /** Removes every notification and ends every low-battery episode, so the next low reading warns again. */
     fun clearNotifications()
 
     fun initChannels()
@@ -63,13 +65,44 @@ interface MeshNotificationManager {
         isSilent: Boolean = false,
     )
 
-    fun showAlertNotification(contactKey: String, name: String, alert: String)
+    suspend fun showAlertNotification(contactKey: String, name: String, alert: String)
 
-    fun showNewNodeSeenNotification(node: Node)
+    suspend fun showMeshBeaconNotification(offer: MeshBeaconOffer)
 
-    fun showOrUpdateLowBatteryNotification(node: Node, isRemote: Boolean)
+    /** [title] arrives resolved: the caller revalidates [node]'s identity right before posting, with no suspension. */
+    suspend fun showNewNodeSeenNotification(node: Node, title: String)
 
-    fun showClientNotification(clientNotification: ClientNotification)
+    fun cancelNewNodeNotification(nodeNum: Int)
+
+    /**
+     * Warns that [node]'s battery is low. The first reading of an episode posts and alerts; later ones only refresh a
+     * warning still showing, so a dismissed one stays dismissed until [cancelLowBatteryNotification] or
+     * [clearNotifications] ends the episode.
+     */
+    suspend fun notifyLowBattery(node: Node, isRemote: Boolean)
+
+    /** Ends [nodeNum]'s low-battery episode and removes its warning. */
+    fun cancelLowBatteryNotification(nodeNum: Int)
+
+    /**
+     * [title] and [severity] come from the notification's kind, which shared code classifies once for every platform.
+     */
+    suspend fun showClientNotification(
+        clientNotification: ClientNotification,
+        title: String,
+        severity: Notification.Type,
+    )
+
+    fun clearClientNotification(clientNotification: ClientNotification)
+
+    /** True when the platform presents [clientNotification] natively, so the in-app modal must not show it too. */
+    fun suppressClientNotificationModal(clientNotification: ClientNotification): Boolean = false
+
+    /** Returns true only when the platform accepted the notification, so the caller can record it as shown. */
+    suspend fun showFirmwareUpdateNotification(notice: FirmwareUpdateNotice): Boolean
+
+    /** Returns true only when the platform accepted the notification. [title] and [message] arrive resolved. */
+    suspend fun showReconnectBlockedNotification(title: String, message: String): Boolean
 
     /**
      * Suspending because Android rebuilds the group summary here, and the summary's labels come from string resources —
@@ -84,8 +117,4 @@ interface MeshNotificationManager {
      * to dismissing the conversation, which also resolves the spinner.
      */
     suspend fun refreshConversationAfterReply(contactKey: String) = cancelMessageNotification(contactKey)
-
-    fun cancelLowBatteryNotification(node: Node)
-
-    fun clearClientNotification(notification: ClientNotification)
 }

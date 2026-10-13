@@ -25,6 +25,7 @@ import dev.mokkery.every
 import dev.mokkery.everySuspend
 import dev.mokkery.matcher.any
 import dev.mokkery.mock
+import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode
 import dev.mokkery.verifySuspend
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +48,7 @@ import org.meshtastic.core.repository.PacketRepository
 import org.meshtastic.core.repository.QuickChatActionRepository
 import org.meshtastic.core.repository.RadioConfigRepository
 import org.meshtastic.core.repository.UiPrefs
+import org.meshtastic.core.repository.usecase.SendMessageOutcome
 import org.meshtastic.core.repository.usecase.SendMessageUseCase
 import org.meshtastic.core.testing.FakeFilterPrefs
 import org.meshtastic.core.testing.FakeNodeRepository
@@ -121,7 +123,7 @@ class MessageViewModelTest {
         every { customEmojiPrefs.customEmojiFrequency } returns customEmojiFrequencyFlow
         every { homoglyphPrefs.homoglyphEncodingEnabled } returns MutableStateFlow(false)
         every { uiPrefs.showQuickChat } returns showQuickChatFlow
-        every { uiPrefs.setShowQuickChat(any()) } returns Unit
+        every { uiPrefs.toggleShowQuickChat() } returns Unit
         every { uiPrefs.showFullMessageTimestamps } returns showFullMessageTimestampsFlow
 
         every { packetRepository.getContactSettings() } returns contactSettingsFlow
@@ -283,17 +285,10 @@ class MessageViewModelTest {
     }
 
     @Test
-    fun testToggleShowQuickChat() = runTest {
-        viewModel.showQuickChat.test {
-            assertEquals(false, awaitItem())
+    fun testToggleShowQuickChatDelegatesToThePrefsToggle() {
+        viewModel.toggleShowQuickChat()
 
-            viewModel.toggleShowQuickChat()
-            // Since setShowQuickChat is mocked to returns Unit, it doesn't update the flow.
-            // In a real app, the flow would update. We simulate it here.
-            showQuickChatFlow.value = true
-            assertEquals(true, awaitItem())
-            cancelAndIgnoreRemainingEvents()
-        }
+        verify { uiPrefs.toggleShowQuickChat() }
     }
 
     @Test
@@ -318,7 +313,7 @@ class MessageViewModelTest {
 
     @Test
     fun testSendMessage() = runTest {
-        everySuspend { sendMessageUseCase.invoke(any(), any(), any()) } returns 1
+        everySuspend { sendMessageUseCase.invoke(any(), any(), any()) } returns SendMessageOutcome.Queued(1)
 
         viewModel.sendMessage("Hello", "0!12345678", null)
 

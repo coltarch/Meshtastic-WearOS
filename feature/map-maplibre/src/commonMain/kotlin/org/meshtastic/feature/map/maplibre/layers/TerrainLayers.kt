@@ -18,11 +18,11 @@ package org.meshtastic.feature.map.maplibre.layers
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import org.maplibre.compose.expressions.dsl.asNumber
@@ -74,9 +74,9 @@ import org.meshtastic.feature.map.terrain.TerrainTileMath
 @Composable
 internal fun TerrainLayers(viewportBounds: BoundingBox?, zoom: Double, displayUnits: MeasurementSystem) {
     val repository = remember { OfflineTerrainRepository.default }
-    val region by repository.region.collectAsState()
+    val region by repository.region.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { repository.refresh() }
+    LaunchedEffect(repository) { repository.refresh() }
 
     // Two early returns (detekt's ReturnCount limit), kept inline rather than in a helper function: a helper
     // returning a resolved nullable can't hand the compiler back a smart-cast on *this* function's own
@@ -120,10 +120,12 @@ private fun HillshadeTiers(repository: OfflineTerrainRepository, region: Offline
     val globalSource =
         rememberRasterDemTileSource(
             tiles = listOf(repository.tileUrlTemplate(TerrainSource.GLOBAL)),
-            options =
-            TileSetOptions(minZoom = 0, maxZoom = globalMaxZoom, attributionHtml = MAPTERHORN_ATTRIBUTION_HTML),
             encoding = RasterDemEncoding.Terrarium,
-        )
+        ) {
+            minZoom = 0
+            maxZoom = globalMaxZoom
+            attributionHtml = MAPTERHORN_ATTRIBUTION_HTML
+        }
 
     if (region.hasRegionalDetail) {
         HillshadeLayer(
@@ -139,14 +141,12 @@ private fun HillshadeTiers(repository: OfflineTerrainRepository, region: Offline
         val regionalSource =
             rememberRasterDemTileSource(
                 tiles = listOf(repository.tileUrlTemplate(TerrainSource.REGIONAL)),
-                options =
-                TileSetOptions(
-                    minZoom = MapterhornEndpoints.REGIONAL_MIN_ZOOM,
-                    maxZoom = regionalMaxZoom,
-                    attributionHtml = MAPTERHORN_ATTRIBUTION_HTML,
-                ),
                 encoding = RasterDemEncoding.Terrarium,
-            )
+            ) {
+                minZoom = MapterhornEndpoints.REGIONAL_MIN_ZOOM
+                maxZoom = regionalMaxZoom
+                attributionHtml = MAPTERHORN_ATTRIBUTION_HTML
+            }
         HillshadeLayer(
             id = "offline-terrain-hillshade-regional",
             source = regionalSource,

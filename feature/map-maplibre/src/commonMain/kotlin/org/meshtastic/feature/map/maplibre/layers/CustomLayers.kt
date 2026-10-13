@@ -17,16 +17,15 @@
 package org.meshtastic.feature.map.maplibre.layers
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
@@ -59,6 +58,7 @@ import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.sources.rememberImageSource
 import org.maplibre.compose.util.PositionQuad
+import org.maplibre.compose.util.PreparedImage
 import org.maplibre.spatialk.geojson.Position
 import org.meshtastic.core.common.util.ioDispatcher
 import org.meshtastic.core.common.util.safeCatching
@@ -86,6 +86,7 @@ internal fun CustomLayers(layers: List<CustomLayer>, opacity: Map<String, Float>
 }
 
 /** One imported overlay: a source, and the three layers that between them can draw anything in it. */
+@Suppress("SpreadOperator") // switch() only takes its cases as varargs
 @Composable
 private fun ImportedLayer(layer: CustomLayer, opacity: Float) {
     val source = rememberGeoJsonSource(data = GeoJsonData.Uri(layer.uri))
@@ -109,7 +110,7 @@ private fun ImportedLayer(layer: CustomLayer, opacity: Float) {
     FillLayer(
         id = "custom-${layer.id}-fill",
         source = source,
-        filter = geometryIsOneOf(GeometryType.Polygon, GeometryType.MultiPolygon),
+        filter = geometryIsOneOf(listOf(GeometryType.Polygon, GeometryType.MultiPolygon)),
         color = fill.convertToColor(const(CustomLayerBlue)),
         // The layer's own opacity scales whatever the feature asked for, rather than replacing it: an import that
         // styles some features translucent stays relatively translucent as the whole layer fades.
@@ -122,10 +123,12 @@ private fun ImportedLayer(layer: CustomLayer, opacity: Float) {
         // for a 5dp border would silently get one pixel. The Google flavor honours the width, and so does this.
         filter =
         geometryIsOneOf(
-            GeometryType.LineString,
-            GeometryType.MultiLineString,
-            GeometryType.Polygon,
-            GeometryType.MultiPolygon,
+            listOf(
+                GeometryType.LineString,
+                GeometryType.MultiLineString,
+                GeometryType.Polygon,
+                GeometryType.MultiPolygon,
+            ),
         ),
         color = strokeColor,
         opacity = feature["stroke-opacity"].asNumber(const(1f)) * const(opacity),
@@ -134,7 +137,7 @@ private fun ImportedLayer(layer: CustomLayer, opacity: Float) {
     CircleLayer(
         id = "custom-${layer.id}-point",
         source = source,
-        filter = geometryIsOneOf(GeometryType.Point, GeometryType.MultiPoint),
+        filter = geometryIsOneOf(listOf(GeometryType.Point, GeometryType.MultiPoint)),
         color = strokeColor,
         opacity = const(opacity),
         radius = const(POINT_RADIUS.dp),
@@ -184,7 +187,7 @@ private fun rememberLayerIcons(urls: Set<String>): Map<String, Painter> {
         key(url) {
             val painter =
                 rememberAsyncImagePainter(ImageRequest.Builder(LocalPlatformContext.current).data(url).build())
-            val state by painter.state.collectAsState()
+            val state by painter.state.collectAsStateWithLifecycle()
             // The loaded painter, not the async wrapper around it: MapLibre rasterizes a painter outside the
             // composition driving it, where an AsyncImagePainter draws nothing.
             (state as? AsyncImagePainter.State.Success)?.let { loaded[url] = it.painter }
@@ -205,13 +208,14 @@ private fun GroundOverlayLayer(layerId: String, index: Int, overlay: LayerGround
     // Decoded off the composition thread: an ESRI export's tile is routinely multi-megapixel, and a synchronous
     // decode in `remember` would hitch the map for every overlay on every first composition.
     val image by
-        produceState<ImageBitmap?>(initialValue = null, overlay.imagePath) {
+        produceState<PreparedImage?>(initialValue = null, overlay.imagePath) {
             value =
                 withContext(ioDispatcher) {
                     safeCatching {
                         mapLayerFileSystem()
                             .read(overlay.imagePath.toLocalPath()) { readByteArray() }
                             .decodeToImageBitmap()
+                            .let(PreparedImage::fromBitmap)
                     }
                         .onFailure {
                             Logger.withTag("CustomLayers").w(it) { "Could not decode a ground overlay image" }
@@ -241,7 +245,7 @@ private fun GroundOverlayLayer(layerId: String, index: Int, overlay: LayerGround
 private val CustomLayerBlue = Color(0xFF3F51B5)
 
 /** True for a feature whose geometry is any of [types]. */
-private fun geometryIsOneOf(vararg types: GeometryType): Expression<BooleanValue> =
+private fun geometryIsOneOf(types: List<GeometryType>): Expression<BooleanValue> =
     types.map { feature.geometryType() eq const(it) }.reduce { left, right -> left or right }
 
 /**

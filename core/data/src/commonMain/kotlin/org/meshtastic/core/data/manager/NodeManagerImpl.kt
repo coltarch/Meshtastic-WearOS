@@ -38,11 +38,11 @@ import org.meshtastic.core.model.MyNodeInfo
 import org.meshtastic.core.model.Node
 import org.meshtastic.core.model.NodeAddress
 import org.meshtastic.core.model.util.NodeIdLookup
+import org.meshtastic.core.model.util.TimeConstants
 import org.meshtastic.core.repository.ConnectionIdentity
+import org.meshtastic.core.repository.MeshNotificationManager
 import org.meshtastic.core.repository.NodeManager
 import org.meshtastic.core.repository.NodeRepository
-import org.meshtastic.core.repository.Notification
-import org.meshtastic.core.repository.NotificationManager
 import org.meshtastic.core.repository.RadioInterfaceService
 import org.meshtastic.core.repository.RadioSessionContext
 import org.meshtastic.core.resources.Res
@@ -85,7 +85,7 @@ private val DEFAULT_NODE_NAME_REGEX = Regex("^Meshtastic [0-9a-fA-F]{4}$")
 @Single(binds = [NodeManager::class, NodeIdLookup::class])
 class NodeManagerImpl(
     private val nodeRepository: NodeRepository,
-    private val notificationManager: NotificationManager,
+    private val serviceNotifications: MeshNotificationManager,
     private val radioInterfaceService: RadioInterfaceService,
     private val scope: ServiceScope,
 ) : NodeManager {
@@ -96,6 +96,25 @@ class NodeManagerImpl(
 
     private fun persistenceLane(nodeNum: Int): Mutex =
         nodePersistenceLanes[(nodeNum.toLong() and Int.MAX_VALUE.toLong()).toInt() % nodePersistenceLanes.size]
+
+    // A persist not yet in its lane writes the latest node once it gets there, so one per node and session is enough.
+    // Each holds a session lease that teardown drains, so a slow database must not collect one per packet.
+    private val pendingPersists = atomic(emptyMap<Pair<Int, RadioSessionContext?>, Any>())
+
+    private fun schedulePersistence(nodeNum: Int, session: RadioSessionContext?) {
+        val key = nodeNum to session
+        val token = Any()
+        var claimed = false
+        pendingPersists.update { pending ->
+            claimed = key !in pending
+            if (claimed) pending + (key to token) else pending
+        }
+        if (!claimed) return
+        val release = { pendingPersists.update { pending -> if (pending[key] === token) pending - key else pending } }
+        radioInterfaceService
+            .launchSessionWork(scope, session) { persistLatestNode(nodeNum, onLaneEntered = release) }
+            .invokeOnCompletion { release() }
+    }
 
     /**
      * Resolves a validated public-key correlation hint from a stored [Node], preferring [Node.publicKey] and falling
@@ -157,18 +176,18 @@ class NodeManagerImpl(
          * map read Room, not this index, so eviction is not visible in the UI.
          *
          * Eviction order is least-valuable-first: bare-packet placeholders before nodes that have sent a real NodeInfo,
-         * and within each group the least recently heard. Nodes the user has marked (favourite, ignored) are never
-         * evicted, since that is user data rather than observed mesh state.
+         * and within each group the least recently heard. Nodes the user has marked (favourite, ignored, verified) are
+         * never evicted, since that is user data rather than observed mesh state.
          *
          * The cap is therefore best-effort rather than absolute: if protected entries alone exceed [maxNodes] the index
-         * stays above it. That is deliberate — favourite and ignored are set only by the local user, so no remote party
-         * can inflate them, and silently discarding user data to satisfy a memory bound would be the worse trade.
+         * stays above it. That is deliberate — these marks are set only by the local user, so no remote party can
+         * inflate them, and silently discarding user data to satisfy a memory bound would be the worse trade.
          */
         fun evictedToFit(maxNodes: Int, keep: Set<Int>): NodeIndex {
             if (byNum.size <= maxNodes) return this
             val evictable =
                 byNum.values
-                    .filterNot { it.num in keep || it.isFavorite || it.isIgnored }
+                    .filterNot { it.num in keep || it.isFavorite || it.isIgnored || it.manuallyVerified }
                     // Placeholders first, then oldest-heard, then node num so the outcome is deterministic.
                     .sortedWith(
                         compareByDescending<Node> { isDefaultIdentityPlaceholder(it) }
@@ -355,7 +374,6 @@ class NodeManagerImpl(
 
     companion object {
         private const val NODE_PERSISTENCE_LANE_COUNT = 64
-        private const val TIME_MS_TO_S = 1000L
         private const val GENERATED_NODE_NAME_SUFFIX_LENGTH = 4
 
         /** `precision_bits` value used by firmware for an un-degraded (full 32-bit) coordinate. */
@@ -532,6 +550,7 @@ class NodeManagerImpl(
 
     override fun removeByNodenum(nodeNum: Int) {
         nodeState.update { state -> state.copy(index = state.index.remove(nodeNum), revision = state.revision + 1) }
+        serviceNotifications.cancelLowBatteryNotification(nodeNum)
     }
 
     override fun applyTrustedIdentityMigrations(removedNums: Collection<Int>) {
@@ -544,10 +563,9 @@ class NodeManagerImpl(
             // a key from — its previously captured hint MUST be preserved so same-key replay stays suppressed and a
             // later genuinely different-keyed device can still claim the slot under the intended contract.
             committedPresentNums = removedNums.filterTo(mutableSetOf()) { it in state.index.byNum }
-            committedHints =
-                removedNums.associateWith { num ->
-                    state.index.byNum[num]?.let(::resolveNodePublicKeyHint) ?: state.retiredKeyHints[num]
-                }
+            committedHints = removedNums.associateWith { num ->
+                state.index.byNum[num]?.let(::resolveNodePublicKeyHint) ?: state.retiredKeyHints[num]
+            }
             state.copy(
                 index = removedNums.fold(state.index) { index, nodeNum -> index.remove(nodeNum) },
                 retiredNodeNums = state.retiredNodeNums.addingAll(removedNums),
@@ -564,7 +582,7 @@ class NodeManagerImpl(
         // Commit retirement first. A dispatch already in progress will fail its final state revalidation; one that
         // completed before the commit is removed by this cancellation. Side effects run once, outside the CAS loop.
         removedNums.forEach { num ->
-            notificationManager.cancel(num)
+            serviceNotifications.cancelNewNodeNotification(num)
             val keyDescription =
                 committedHints[num]?.let(::publicKeyLogFingerprint)
                     ?: if (num in committedPresentNums) "none" else "absent"
@@ -617,9 +635,7 @@ class NodeManagerImpl(
         session: RadioSessionContext? = null,
         transform: (Node) -> Node,
     ): NodeStateChange? = updateNodeState(nodeNum, channel, transform).also { change ->
-        if (change != null && shouldPersist(change.next)) {
-            radioInterfaceService.launchSessionWork(scope, session) { persistLatestNode(nodeNum) }
-        }
+        if (change != null && shouldPersist(change.next)) schedulePersistence(nodeNum, session)
     }
 
     override fun updateNode(nodeNum: Int, channel: Int, transform: (Node) -> Node) {
@@ -635,16 +651,19 @@ class NodeManagerImpl(
         updateNodeAndSchedulePersistence(nodeNum, channel, session, transform)
     }
 
-    override suspend fun updateNodeAndPersist(nodeNum: Int, channel: Int, transform: (Node) -> Node) {
-        val result = updateNodeState(nodeNum, channel, transform)?.next ?: return
+    /** [transform] may run more than once under compare-and-set contention, so it must be side-effect free. */
+    private suspend fun updateNodeAndPersist(nodeNum: Int, transform: (Node) -> Node) {
+        val result = updateNodeState(nodeNum, channel = 0, transform)?.next ?: return
         if (shouldPersist(result)) persistLatestNode(nodeNum)
     }
 
     /** Serializes persistence per node and reads the latest in-memory value inside that lane. */
-    private suspend fun persistLatestNode(nodeNum: Int) = persistenceLane(nodeNum).withLock {
-        val latest = nodeState.value.index.byNum[nodeNum] ?: return@withLock
-        if (shouldPersist(latest)) nodeRepository.upsert(latest)
-    }
+    private suspend fun persistLatestNode(nodeNum: Int, onLaneEntered: () -> Unit = {}) =
+        persistenceLane(nodeNum).withLock {
+            onLaneEntered()
+            val latest = nodeState.value.index.byNum[nodeNum] ?: return@withLock
+            if (shouldPersist(latest)) nodeRepository.upsert(latest)
+        }
 
     override fun handleReceivedUser(
         fromNum: Int,
@@ -717,7 +736,7 @@ class NodeManagerImpl(
         }
 
         updateNodeAndSchedulePersistence(fromNum, channel = 0, session = session) { node ->
-            val rawPosTime = if (p.time != 0) p.time else (defaultTime / TIME_MS_TO_S).toInt()
+            val rawPosTime = if (p.time != 0) p.time else (defaultTime / TimeConstants.MS_PER_SEC).toInt()
             val posTime = clampTimestampToNow(rawPosTime)
             val newLastHeard = maxOf(node.lastHeard, posTime)
 
@@ -779,27 +798,35 @@ class NodeManagerImpl(
 
     override fun installNodeInfo(info: ProtoNodeInfo) {
         val reportsHeard = reportsHeardOnCurrentLora.value
+        cancelLowBatteryIfUnfavorited(info)
         // Stage-2 configuration installation persists the complete node snapshot through installConfig.
         updateNodeState(info.num, channel = 0) { node -> applyNodeInfo(node, info, reportsHeard) }
     }
 
     override suspend fun installNodeInfoAndPersist(info: ProtoNodeInfo) {
         val reportsHeard = reportsHeardOnCurrentLora.value
+        cancelLowBatteryIfUnfavorited(info)
         updateNodeAndPersist(info.num) { node -> applyNodeInfo(node, info, reportsHeard) }
+    }
+
+    /** Only favorites are warned about, and one unfavorited from another client arrives here, not via setFavorite. */
+    private fun cancelLowBatteryIfUnfavorited(info: ProtoNodeInfo) {
+        val state = nodeState.value
+        if (info.is_favorite || info.num == state.localNodeNum) return
+        if (state.index.byNum[info.num]?.isFavorite == true) serviceNotifications.cancelLowBatteryNotification(info.num)
     }
 
     private fun applyNodeInfo(node: Node, info: ProtoNodeInfo, reportsHeard: Boolean): Node {
         var next = node
         val user = info.user
         if (user != null && !shouldPreserveExistingUser(node.user, user)) {
-            var newUser =
-                user.let {
-                    if (it.is_licensed == true) {
-                        it.newBuilder().also { wb -> wb.public_key = ByteString.EMPTY }.build()
-                    } else {
-                        it
-                    }
+            var newUser = user.let {
+                if (it.is_licensed == true) {
+                    it.newBuilder().also { wb -> wb.public_key = ByteString.EMPTY }.build()
+                } else {
+                    it
                 }
+            }
             if (info.via_mqtt && !newUser.long_name.endsWith(" (MQTT)")) {
                 newUser = newUser.newBuilder().also { wb -> wb.long_name = "${newUser.long_name} (MQTT)" }.build()
             }
@@ -825,6 +852,7 @@ class NodeManagerImpl(
             isIgnored = info.is_ignored,
             isMuted = info.is_muted,
             signsPackets = info.has_xeddsa_signed,
+            manuallyVerified = next.manuallyVerified || info.is_key_manually_verified,
         )
     }
 
@@ -937,8 +965,9 @@ class NodeManagerImpl(
                 )
             }
             // Key is already represented elsewhere — stale replay, suppress.
-            val keyAlreadyRepresented =
-                resolvedKey.let { key -> before.candidateNumsByPublicKey[key].orEmpty().isNotEmpty() }
+            val keyAlreadyRepresented = resolvedKey.let { key ->
+                before.candidateNumsByPublicKey[key].orEmpty().isNotEmpty()
+            }
             if (keyAlreadyRepresented) {
                 return ReceivedUserTransition(
                     after = before,
@@ -1139,8 +1168,10 @@ class NodeManagerImpl(
      */
     private fun transformUserNode(node: Node, p: User, channel: Int, manuallyVerified: Boolean): Node {
         val shouldPreserve = shouldPreserveExistingUser(node.user, p)
+        // A mesh NodeInfo carries no verification, so it never clears one an import set.
+        val verified = node.manuallyVerified || manuallyVerified
         return if (shouldPreserve) {
-            node.copy(channel = channel, manuallyVerified = manuallyVerified)
+            node.copy(channel = channel, manuallyVerified = verified)
         } else {
             val incomingKey = resolveValidatedPublicKeyHint(p.public_key)
             // Prefer node.publicKey when valid (the authoritative stored key); fall back to node.user.public_key.
@@ -1159,18 +1190,14 @@ class NodeManagerImpl(
                 keyMatch = node.keyMatch && !keyMismatch,
                 newPublicKey = if (keyMismatch) incomingKey else node.newPublicKey,
                 channel = channel,
-                manuallyVerified = manuallyVerified,
+                manuallyVerified = verified,
             )
         }
     }
 
     /** Applies ordinary same-number persistence and notification side effects once after the reducer CAS commits. */
     private fun applyReceivedUserEffects(transition: ReceivedUserTransition, session: RadioSessionContext?) {
-        transition.upsertNode?.let { node ->
-            if (shouldPersist(node)) {
-                radioInterfaceService.launchSessionWork(scope, session) { persistLatestNode(node.num) }
-            }
-        }
+        transition.upsertNode?.let { node -> if (shouldPersist(node)) schedulePersistence(node.num, session) }
         transition.notifyNode?.let { node ->
             radioInterfaceService.launchSessionWork(scope, session) {
                 // Resolve the display title before validation so the suspending compose-resources call does
@@ -1213,15 +1240,7 @@ class NodeManagerImpl(
                     return@launchSessionWork
                 }
                 Logger.d { "[NodeIdentity] notification-dispatch num=${node.num}" }
-                notificationManager.dispatch(
-                    Notification(
-                        title = title,
-                        message = node.user.long_name,
-                        category = Notification.Category.NodeEvent,
-                        id = node.num,
-                        deepLinkUri = "meshtastic://meshtastic/nodes/${node.num}",
-                    ),
-                )
+                serviceNotifications.showNewNodeSeenNotification(node, title)
             }
         }
     }

@@ -19,6 +19,7 @@ package org.meshtastic.core.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 
@@ -112,7 +113,17 @@ object SemanticColors {
     val SuccessLight = Color(0xFFE5FCEE) // Green 100
 }
 
-val HyperlinkBlue = Color(0xFF5C6BC0) // Blue 600 (Info)
+/**
+ * The Link colour: Blue 800 on a light surface and Blue 300 on a dark one, the tones nearest the standards' Blue 600
+ * and Blue 400 that hold 4.5:1 on every surface a link sits on here, node-tinted message cards included. Follows the
+ * active scheme's surface rather than the system, so a theme picked in the app is respected.
+ */
+val ColorScheme.link: Color
+    get() = if (surface.luminance() < DARK_SURFACE_LUMINANCE) BluePalette.B300 else BluePalette.B800
+
+/** Midpoint luminance separating a light surface from a dark one; both static schemes sit near the extremes. */
+private const val DARK_SURFACE_LUMINANCE = 0.5f
+
 val AnnotationColor = Color(0xFF2855A8) // Blue 700 (Accent)
 
 object TracerouteColors {
@@ -169,6 +180,7 @@ object GraphColors {
 object StatusColors {
     val ColorScheme.StatusGreen: Color
         @Composable
+        @ReadOnlyComposable
         get() =
             if (isSystemInDarkTheme()) {
                 Color(0xFF3FB86D) // Green 600
@@ -178,6 +190,7 @@ object StatusColors {
 
     val ColorScheme.StatusYellow: Color
         @Composable
+        @ReadOnlyComposable
         get() =
             if (isSystemInDarkTheme()) {
                 Color(0xFFE8A33E) // Warning
@@ -187,6 +200,7 @@ object StatusColors {
 
     val ColorScheme.StatusOrange: Color
         @Composable
+        @ReadOnlyComposable
         get() =
             if (isSystemInDarkTheme()) {
                 Color(0xFFE07000)
@@ -196,6 +210,7 @@ object StatusColors {
 
     val ColorScheme.StatusRed: Color
         @Composable
+        @ReadOnlyComposable
         get() =
             if (isSystemInDarkTheme()) {
                 Color(0xFFE05252) // Error
@@ -205,6 +220,7 @@ object StatusColors {
 
     val ColorScheme.StatusBlue: Color
         @Composable
+        @ReadOnlyComposable
         get() =
             if (isSystemInDarkTheme()) {
                 Color(0xFF5C6BC0) // Info
@@ -217,10 +233,7 @@ object StatusColors {
      * one status colour whose light and dark values differ, so it follows the active scheme's surface, not the system.
      */
     val ColorScheme.StatusSky: Color
-        @Composable get() = if (surface.luminance() < DARK_SURFACE_LUMINANCE) Color(0xFF7DD3FC) else Color(0xFF075985)
-
-    /** Midpoint luminance separating a light surface from a dark one; both static schemes sit near the extremes. */
-    private const val DARK_SURFACE_LUMINANCE = 0.5f
+        get() = if (surface.luminance() < DARK_SURFACE_LUMINANCE) Color(0xFF7DD3FC) else Color(0xFF075985)
 }
 
 @Suppress("MagicNumber")
