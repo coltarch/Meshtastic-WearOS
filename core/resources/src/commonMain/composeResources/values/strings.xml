@@ -373,6 +373,7 @@
     <string name="delete_for_me">Delete for me</string>
     <string name="delete_key_backup">Delete Key Backup</string>
     <string name="delete_key_backup_confirmation">Deletes the encrypted key backup stored on this device. This cannot be undone.</string>
+    <string name="delete_key_backup_pick">Pick the encrypted key backup to delete from this device. This cannot be undone.</string>
     <plurals name="delete_messages">
         <item quantity="one">Delete message?</item>
         <item quantity="other">Delete %1$s messages?</item>
@@ -882,6 +883,7 @@
     <string name="jump_to_latest_from">%1$s</string>
     <string name="jump_to_latest_from_and_more">%1$s +%2$d</string>
     <!-- KEY -->
+    <string name="key_backup_choice">%1$s, backed up %2$s</string>
     <string name="key_backup_deleted">Key backup deleted</string>
     <string name="key_backup_not_found">No key backup found for this node</string>
     <string name="key_backup_restore_failed">Failed to restore keys from backup</string>
@@ -1647,6 +1649,7 @@
     <string name="reset_to_defaults">Reset to defaults</string>
     <string name="restore_keys">Restore Keys</string>
     <string name="restore_keys_confirmation">Restores the backed-up public and private keys to this node.</string>
+    <string name="restore_keys_pick_backup">Pick the backup to restore to this node. A factory reset or a new key changes the node's ID, so older backups stay under the old ID. Only restore a backup taken from this same radio: another radio's key gives both radios the same identity.</string>
     <string name="retry">Retry</string>
     <string name="ringtone">Ringtone</string>
     <string name="ringtone_file_empty">File is empty</string>
@@ -1827,6 +1830,7 @@
     <string name="site_planner_use_node_location">Use current node location</string>
     <string name="skip">Skip</string>
     <string name="slot">Slot</string>
+    <string name="slot_auto">Auto</string>
     <string name="snr">SNR</string>
     <string name="snr_definition">Signal-to-Noise Ratio, a measure used in communications to quantify the level of a desired signal to the level of background noise. In Meshtastic and other wireless systems, a higher SNR indicates a clearer signal that can enhance the reliability and quality of data transmission.</string>
     <string name="soil_moisture">Soil Moist</string>

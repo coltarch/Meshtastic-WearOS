@@ -343,6 +343,7 @@ delete_for_everyone
 delete_for_me
 delete_key_backup
 delete_key_backup_confirmation
+delete_key_backup_pick
 delete_messages
 delete_messages_title
 delete_selection
@@ -846,6 +847,7 @@ json_output_enabled
 jump_to_latest_from
 jump_to_latest_from_and_more
 ### KEY ###
+key_backup_choice
 key_backup_deleted
 key_backup_not_found
 key_backup_restore_failed
@@ -1587,6 +1589,7 @@ reset
 reset_to_defaults
 restore_keys
 restore_keys_confirmation
+restore_keys_pick_backup
 retry
 ringtone
 ringtone_file_empty
@@ -1767,6 +1770,7 @@ site_planner_use_map_center
 site_planner_use_node_location
 skip
 slot
+slot_auto
 snr
 snr_definition
 soil_moisture
@@ -2128,14 +2132,18 @@ zoom_out
 ### SCHEMA (generated, values/schema_strings.xml) ###
 schema_ambientlighting_blue
 schema_ambientlighting_blue_description
+schema_ambientlighting_blue_keywords
 schema_ambientlighting_current
 schema_ambientlighting_current_description
+schema_ambientlighting_current_keywords
 schema_ambientlighting_green
 schema_ambientlighting_green_description
+schema_ambientlighting_green_keywords
 schema_ambientlighting_led_state
 schema_ambientlighting_led_state_description
 schema_ambientlighting_red
 schema_ambientlighting_red_description
+schema_ambientlighting_red_keywords
 schema_audio_audio_baud_codec2_1200
 schema_audio_audio_baud_codec2_1300
 schema_audio_audio_baud_codec2_1400
@@ -2345,6 +2353,7 @@ schema_lora_coding_rate_description
 schema_lora_config_ok_to_mqtt
 schema_lora_hop_limit
 schema_lora_hop_limit_description
+schema_lora_hop_limit_keywords
 schema_lora_ignore_incoming
 schema_lora_ignore_mqtt
 schema_lora_ignore_mqtt_description
@@ -2417,6 +2426,7 @@ schema_lora_tx_enabled
 schema_lora_tx_enabled_description
 schema_lora_tx_power
 schema_lora_tx_power_description
+schema_lora_tx_power_keywords
 schema_lora_use_preset
 schema_lora_use_preset_description
 schema_mapreportsettings_publish_interval_secs
