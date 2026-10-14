@@ -19,6 +19,7 @@
 package org.meshtastic.wear.presentation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 
@@ -39,15 +40,25 @@ val COLOR_OFFLINE_GRAY = Color(0xFF4A4A4A)
 
 // Theme-aware colors
 val COLOR_BG_DEEP
-    @Composable get() = if (LocalHighContrastMode.current) Color(0xFF0D0D0D) else Color.Black
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalHighContrastMode.current) Color(0xFF0D0D0D) else Color.Black
 val COLOR_SURFACE1
-    @Composable get() = if (LocalHighContrastMode.current) Color(0xFF1A1A1A) else Color.Black
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalHighContrastMode.current) Color(0xFF1A1A1A) else Color.Black
 val COLOR_SURFACE2
-    @Composable get() = if (LocalHighContrastMode.current) Color(0xFF242424) else Color.Black
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalHighContrastMode.current) Color(0xFF242424) else Color.Black
 val COLOR_TEXT_PRIMARY
-    @Composable get() = if (LocalHighContrastMode.current) Color(0xFFEEEEEE) else Color.White
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalHighContrastMode.current) Color(0xFFEEEEEE) else Color.White
 val COLOR_TEXT_SECONDARY
-    @Composable get() = if (LocalHighContrastMode.current) Color(0xFF888888) else Color.White
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalHighContrastMode.current) Color(0xFF888888) else Color.White
 
 const val COLOR_NODES_BG = 0xFF004D40
 const val BATTERY_HIGH_THRESHOLD = 60

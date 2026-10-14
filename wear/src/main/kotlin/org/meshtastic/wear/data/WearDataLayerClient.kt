@@ -104,6 +104,7 @@ class PlayServicesWearDataLayerClient(
 
     override val syncState: StateFlow<WearCompanionSyncState> = syncStateHolder.state
 
+    @Suppress("SuspendFunSwallowedCancellation")
     override suspend fun synchronize() {
         if (!syncMutex.tryLock()) return
         try {

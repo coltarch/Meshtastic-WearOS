@@ -21,6 +21,7 @@ package org.meshtastic.wear.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.meshtastic.wear.data.WearDataLayerClient
 import org.meshtastic.wear.data.WearDataLayerPaths
@@ -33,6 +34,8 @@ class NodeDetailsViewModel(private val dataLayerClient: WearDataLayerClient) : V
                     WearDataLayerPaths.OPEN_NODE_ON_PHONE,
                     nodeNum.toString().encodeToByteArray(),
                 )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (_: Exception) {
                 Logger.w { "Node could not be opened on the phone" }
             }

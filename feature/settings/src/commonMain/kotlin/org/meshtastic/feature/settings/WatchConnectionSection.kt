@@ -18,8 +18,8 @@ package org.meshtastic.feature.settings
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -170,7 +170,11 @@ private fun ManualSyncCard(state: WatchConnectionUiState, onSyncNow: () -> Unit)
     val containerColor by
         animateColorAsState(
             targetValue =
-            if (hasError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+            if (hasError) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
             animationSpec = tween(durationMillis = CARD_COLOR_ANIMATION_MILLIS),
             label = "Sync card color",
         )
@@ -218,10 +222,7 @@ private fun ManualSyncCard(state: WatchConnectionUiState, onSyncNow: () -> Unit)
             Button(onClick = onSyncNow, modifier = Modifier.fillMaxWidth(), enabled = state.canSync) {
                 Icon(imageVector = MeshtasticIcons.Refresh, contentDescription = null)
                 Text(
-                    text =
-                    stringResource(
-                        if (hasError) Res.string.watch_sync_retry else Res.string.watch_sync_now_label,
-                    ),
+                    text = stringResource(if (hasError) Res.string.watch_sync_retry else Res.string.watch_sync_now_label),
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -237,7 +238,8 @@ private fun SearchingForWatchIndicator() {
         transition.animateFloat(
             initialValue = 0f,
             targetValue = FULL_ROTATION_DEGREES,
-            animationSpec = infiniteRepeatable(tween(SEARCH_ROTATION_MILLIS, easing = LinearEasing), RepeatMode.Restart),
+            animationSpec =
+            infiniteRepeatable(tween(SEARCH_ROTATION_MILLIS, easing = LinearEasing), RepeatMode.Restart),
             label = "Watch search rotation",
         )
 
@@ -290,13 +292,12 @@ private fun SyncProgressIndicator(state: WatchConnectionUiState) {
 }
 
 @Composable
-private fun syncErrorExplanation(error: WatchConnectionError): String =
-    when (error) {
-        WatchConnectionError.NotConnected -> stringResource(Res.string.watch_sync_not_connected)
-        WatchConnectionError.WearServicesUnavailable -> stringResource(Res.string.watch_sync_services_unavailable)
-        WatchConnectionError.SynchronizationFailed -> stringResource(Res.string.watch_sync_problem_transfer)
-        WatchConnectionError.SynchronizationInterrupted -> stringResource(Res.string.watch_sync_interrupted)
-    }
+private fun syncErrorExplanation(error: WatchConnectionError): String = when (error) {
+    WatchConnectionError.NotConnected -> stringResource(Res.string.watch_sync_not_connected)
+    WatchConnectionError.WearServicesUnavailable -> stringResource(Res.string.watch_sync_services_unavailable)
+    WatchConnectionError.SynchronizationFailed -> stringResource(Res.string.watch_sync_problem_transfer)
+    WatchConnectionError.SynchronizationInterrupted -> stringResource(Res.string.watch_sync_interrupted)
+}
 
 private const val CARD_COLOR_ANIMATION_MILLIS = 350
 private const val SEARCH_ROTATION_MILLIS = 900

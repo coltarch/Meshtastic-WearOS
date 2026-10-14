@@ -50,7 +50,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import org.meshtastic.core.common.util.nowMillis
@@ -86,7 +85,7 @@ import org.meshtastic.core.model.Channel as MeshChannel
 
 /** Synchronizes phone repositories with connected Wear OS nodes through the Wearable Data Layer. */
 @Single
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList", "SpreadOperator")
 class WearableSyncService(
     context: Context,
     private val watchPrefs: WatchPrefs,
@@ -218,6 +217,7 @@ class WearableSyncService(
         }
     }
 
+    @Suppress("SuspendFunSwallowedCancellation")
     private suspend fun synchronizeConnectedWatch(targetNodeId: String? = null, reportDisconnectedAsError: Boolean) {
         try {
             performSynchronization(targetNodeId, reportDisconnectedAsError)

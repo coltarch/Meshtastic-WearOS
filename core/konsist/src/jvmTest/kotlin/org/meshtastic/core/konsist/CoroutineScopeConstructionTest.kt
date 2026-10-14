@@ -62,9 +62,12 @@ class CoroutineScopeConstructionTest {
             "core/prefs/commonMain/RadioPrefsImpl.kt",
             "core/prefs/commonMain/TakPrefsImpl.kt",
             "core/prefs/commonMain/UiPrefsImpl.kt",
+            "core/prefs/commonMain/WatchPrefsImpl.kt",
             "core/service/androidMain/BootCompleteReceiver.kt",
             "core/service/androidMain/ConversationActionService.kt",
             "core/service/androidMain/MeshService.kt",
+            "core/service/androidMain/PhoneWearableListenerService.kt",
+            "core/service/androidMain/WearableSyncService.kt",
             "core/service/commonMain/CoreServiceModule.kt",
             "core/service/commonMain/MeshServiceOrchestrator.kt",
             "core/service/commonMain/MeshServiceOrchestrator.kt",
@@ -87,6 +90,8 @@ class CoroutineScopeConstructionTest {
             "feature/widget/main/AndroidAppWidgetUpdater.kt",
             "feature/widget/main/LocalStatsWidgetState.kt",
             "feature/wifi-provision/commonMain/NymeaWifiService.kt",
+            "wear/main/DataLayerListenerService.kt",
+            "wear/main/WearApplication.kt",
         )
 
     /** A call to the `CoroutineScope(context)` factory; `rememberCoroutineScope()` has no word break before it. */

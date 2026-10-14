@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,9 +82,9 @@ fun StandaloneRadioScreen(viewModel: StandaloneRadioViewModel = koinViewModel())
     var permissionStatusBeforeRequest by remember { mutableStateOf<PermissionStatus?>(null) }
     var showPermissionRationale by remember { mutableStateOf(false) }
 
-    LaunchedEffect(permission.status) {
-        val previousStatus = permissionStatusBeforeRequest ?: return@LaunchedEffect
-        if (permission.status == previousStatus) return@LaunchedEffect
+    SideEffect {
+        val previousStatus = permissionStatusBeforeRequest ?: return@SideEffect
+        if (permission.status == previousStatus) return@SideEffect
         permissionStatusBeforeRequest = null
         if (permission.status == PermissionStatus.GRANTED) {
             viewModel.startDiscovery()

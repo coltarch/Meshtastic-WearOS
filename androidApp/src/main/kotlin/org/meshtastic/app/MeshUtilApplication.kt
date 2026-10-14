@@ -134,12 +134,7 @@ open class MeshUtilApplication :
      * whose connection is what makes an un-terminated Application unsafe.
      */
     protected open fun startBackgroundInit() {
-        applicationScope.launch {
-            restoreAppEntryPoints()
-            // Resolve and start the lazy singleton only after androidContext is available. WearableSyncService.start() is
-            // idempotent, so a listener-service wakeup racing app startup cannot create duplicate Flow collectors.
-            get<WearableSyncService>().start()
-        }
+        applicationScope.launch { restoreAppEntryPoints() }
 
         // Resolve and start the lazy singleton only after androidContext is available. WearableSyncService.start() is
         // idempotent, so a listener-service wakeup racing app startup cannot create duplicate Flow collectors.

@@ -227,6 +227,7 @@ class PacketRepositoryImpl(private val dbManager: DatabaseProvider, private val 
             }
         }
 
+    @Suppress("SuspendFunWithFlowReturnType")
     override suspend fun getRecentMessages(
         limit: Int,
         getNode: suspend (String?) -> Node,

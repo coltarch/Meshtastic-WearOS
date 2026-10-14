@@ -21,6 +21,7 @@ import org.meshtastic.core.repository.WatchPrefs
 import org.meshtastic.core.repository.WatchSyncPreferences
 import org.meshtastic.core.repository.WearOperatingMode
 
+@Suppress("TooManyFunctions")
 class FakeWatchPrefs :
     BaseFake(),
     WatchPrefs {

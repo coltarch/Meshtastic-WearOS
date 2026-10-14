@@ -95,16 +95,15 @@ class StandaloneRadioViewModel(
         }
         scanJob?.cancel()
         mutableDevices.value = emptyList()
-        scanJob =
-            viewModelScope.launch {
-                val bluetooth = bluetoothRepository.value
-                bluetooth.refreshState()
-                when {
-                    !bluetooth.state.value.hasPermissions -> mutableState.value = StandaloneRadioState.PermissionDenied
-                    !bluetooth.state.value.enabled -> mutableState.value = StandaloneRadioState.BluetoothDisabled
-                    else -> collectScanResults()
-                }
+        scanJob = viewModelScope.launch {
+            val bluetooth = bluetoothRepository.value
+            bluetooth.refreshState()
+            when {
+                !bluetooth.state.value.hasPermissions -> mutableState.value = StandaloneRadioState.PermissionDenied
+                !bluetooth.state.value.enabled -> mutableState.value = StandaloneRadioState.BluetoothDisabled
+                else -> collectScanResults()
             }
+        }
     }
 
     private suspend fun collectScanResults() {
@@ -119,6 +118,8 @@ class StandaloneRadioViewModel(
         } catch (error: BleScanStartException) {
             mutableState.value = error.reason.toUiState()
             Logger.w { "Standalone BLE discovery unavailable: ${error.reason.label}" }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
             mutableState.value = StandaloneRadioState.ScanUnavailable
             Logger.w { "Standalone BLE discovery unavailable" }
@@ -173,6 +174,8 @@ class StandaloneRadioViewModel(
                     radioPrefs.value.setDevAddr(null)
                     radioPrefs.value.setDevName(null)
                 }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (_: Exception) {
                 Logger.w { "Standalone radio disconnect could not complete" }
             } finally {
