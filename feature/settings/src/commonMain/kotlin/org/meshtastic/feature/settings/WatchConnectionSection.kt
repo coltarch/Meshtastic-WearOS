@@ -222,7 +222,8 @@ private fun ManualSyncCard(state: WatchConnectionUiState, onSyncNow: () -> Unit)
             Button(onClick = onSyncNow, modifier = Modifier.fillMaxWidth(), enabled = state.canSync) {
                 Icon(imageVector = MeshtasticIcons.Refresh, contentDescription = null)
                 Text(
-                    text = stringResource(if (hasError) Res.string.watch_sync_retry else Res.string.watch_sync_now_label),
+                    text =
+                    stringResource(if (hasError) Res.string.watch_sync_retry else Res.string.watch_sync_now_label),
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }

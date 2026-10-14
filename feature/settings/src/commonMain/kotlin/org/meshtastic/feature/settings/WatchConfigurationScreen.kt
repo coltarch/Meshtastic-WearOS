@@ -241,9 +241,7 @@ private fun WatchSyncPreferences(
 @Composable
 private fun SyncSwitch(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val state =
-        stringResource(
-            if (checked) Res.string.watch_sync_state_enabled else Res.string.watch_sync_state_disabled,
-        )
+        stringResource(if (checked) Res.string.watch_sync_state_enabled else Res.string.watch_sync_state_disabled)
     val accessibilityState = stringResource(Res.string.watch_sync_state_description, title, state)
     SwitchPreference(
         title = title,

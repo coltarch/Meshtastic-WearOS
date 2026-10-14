@@ -75,6 +75,7 @@ class WatchViewModelTest {
                 WatchSettingsUiState(
                     watchConnectivityEnabled = false,
                     syncPreferences = WatchSyncPreferences(syncRecentMessages = false),
+                    connection = WatchConnectionUiState(canSync = false),
                 ),
                 awaitItem(),
             )
@@ -101,6 +102,7 @@ class WatchViewModelTest {
                 WatchSettingsUiState(
                     watchConnectivityEnabled = false,
                     syncPreferences = watchPrefs.syncPreferences.value,
+                    connection = WatchConnectionUiState(canSync = false, nothingSelected = true),
                 ),
                 expectMostRecentItem(),
             )
@@ -138,6 +140,7 @@ class WatchViewModelTest {
             assertEquals(
                 WatchSettingsUiState(
                     watchConnectivityEnabled = false,
+                    connection = WatchConnectionUiState(canSync = false),
                 ),
                 expectMostRecentItem(),
             )

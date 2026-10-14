@@ -122,11 +122,10 @@ class WearableSyncService(
         Logger.d { "Wearable synchronization started" }
 
         scope.launch {
-            val listenerRegistration =
-                safeCatching {
-                    capabilityClient.addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY).await()
-                }
-                    .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
+            val listenerRegistration = safeCatching {
+                capabilityClient.addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY).await()
+            }
+                .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
             if (listenerRegistration.isFailure) {
                 watchSyncStateHolder.reportWearServicesUnavailableUnlessActive()
                 return@launch
@@ -432,10 +431,11 @@ class WearableSyncService(
     ): Boolean = disabledCategories
         .map { category ->
             val uri = Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(category.dataPath).build()
-            val dataCleared =
-                safeCatching { dataClient.deleteDataItems(uri).await() }
-                    .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
-                    .isSuccess
+            val dataCleared = safeCatching {
+                dataClient.deleteDataItems(uri).await()
+            }
+                .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
+                .isSuccess
             val command = json.encodeToString(category).encodeToByteArray()
             val commandSent =
                 targetNodeIds
@@ -464,10 +464,11 @@ class WearableSyncService(
                 .asPutDataRequest()
                 .setUrgent()
 
-        val dataSent =
-            safeCatching { dataClient.putDataItem(dataRequest).await() }
-                .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
-                .isSuccess
+        val dataSent = safeCatching {
+            dataClient.putDataItem(dataRequest).await()
+        }
+            .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
+            .isSuccess
 
         val bytes = payload.encodeToByteArray()
         val messagesSent =

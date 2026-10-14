@@ -35,8 +35,8 @@ import org.meshtastic.core.resources.getString
 import org.meshtastic.core.resources.navigate_back
 import org.meshtastic.core.resources.watch_message_retention_label
 import org.meshtastic.core.resources.watch_settings_title
-import org.meshtastic.core.resources.watch_sync_enabled_label
 import org.meshtastic.core.resources.watch_sync_channels_label
+import org.meshtastic.core.resources.watch_sync_enabled_label
 import org.meshtastic.core.resources.watch_sync_messages_label
 import org.meshtastic.core.resources.watch_sync_nodes_label
 import org.meshtastic.core.resources.watch_sync_now_label

@@ -139,30 +139,29 @@ class StandaloneRadioViewModel(
     fun connect(device: BleDevice) {
         scanJob?.cancel()
         connectionAttemptJob?.cancel()
-        connectionAttemptJob =
-            viewModelScope.launch {
-                val deviceName = device.name
-                mutableState.value = StandaloneRadioState.Connecting(deviceName)
-                try {
-                    val controller = radioController.value
-                    observeConnectionState(controller, deviceName)
-                    val address = transportFactory.value.toInterfaceAddress(InterfaceId.BLUETOOTH, device.address)
-                    radioPrefs.value.setDevName(device.name)
-                    withTimeout(CONNECTION_TIMEOUT) {
-                        controller.setDeviceAddress(address)
-                        controller.connectionState.first { it == ConnectionState.Connected }
-                    }
-                    mutableState.value = StandaloneRadioState.Connected(deviceName)
-                } catch (_: TimeoutCancellationException) {
-                    mutableState.value = StandaloneRadioState.ConnectionFailed
-                    Logger.w { "Standalone radio connection timed out" }
-                } catch (cancellation: CancellationException) {
-                    throw cancellation
-                } catch (_: Exception) {
-                    mutableState.value = StandaloneRadioState.ConnectionFailed
-                    Logger.w { "Standalone radio connection could not start" }
+        connectionAttemptJob = viewModelScope.launch {
+            val deviceName = device.name
+            mutableState.value = StandaloneRadioState.Connecting(deviceName)
+            try {
+                val controller = radioController.value
+                observeConnectionState(controller, deviceName)
+                val address = transportFactory.value.toInterfaceAddress(InterfaceId.BLUETOOTH, device.address)
+                radioPrefs.value.setDevName(device.name)
+                withTimeout(CONNECTION_TIMEOUT) {
+                    controller.setDeviceAddress(address)
+                    controller.connectionState.first { it == ConnectionState.Connected }
                 }
+                mutableState.value = StandaloneRadioState.Connected(deviceName)
+            } catch (_: TimeoutCancellationException) {
+                mutableState.value = StandaloneRadioState.ConnectionFailed
+                Logger.w { "Standalone radio connection timed out" }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                mutableState.value = StandaloneRadioState.ConnectionFailed
+                Logger.w { "Standalone radio connection could not start" }
             }
+        }
     }
 
     fun disconnect() {
