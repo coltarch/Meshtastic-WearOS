@@ -1,0 +1,49 @@
+name: Fork Check
+
+# Why this file exists.
+# Upstream's own workflows (pull-request.yml, main-check.yml) gate every build
+# job on `if: github.repository == 'meshtastic/Meshtastic-Android'`. In this fork
+# that guard skips `check-changes`, whose outputs are then empty, so the
+# `validate-and-build` job's condition (`needs.check-changes.outputs.android ==
+# 'true'`) is false and it is skipped too. The required check,
+# `check-workflow-status`, only fails on failure/cancelled — "skipped is fine" —
+# so a PR in the fork shows a GREEN check with zero jobs run. That is a false
+# green, not a build.
+#
+# This workflow calls the same reusable check directly, so pushing a branch here
+# actually lints, compiles and tests Coltin's wear work.
+#
+# Fork-only file: it is not in upstream, so it will never arrive via a merge and
+# must be kept when the fork is re-based onto upstream.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "feat/**"
+      - "fork/**"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    uses: ./.github/workflows/reusable-check.yml
+    permissions:
+      contents: read
+      pull-requests: write # the Gradle job summary is posted as a PR comment on failure
+    with:
+      run_lint: true # spotlessCheck + detekt — the repo's zero-lint-tolerance gate
+      run_unit_tests: true # includes the 8 new watch/wear test classes
+      run_android_build: true # assembleDebug — the real compile gate
+      run_screenshot_tests: false # slow and pixel-flaky; upstream runs these on its merge queue
+      run_desktop_builds: false # this fork targets the watch app, not packaging
+      run_coverage: false
+      upload_artifacts: false
+    secrets: inherit # every secret the reusable workflow declares is optional
