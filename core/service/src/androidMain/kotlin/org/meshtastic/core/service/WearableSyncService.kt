@@ -411,15 +411,12 @@ class WearableSyncService(
 
     private fun createWearableRadioStatus(): WearableRadioStatus {
         val node = nodeRepository.ourNodeInfo.value
-        val position = node?.validPosition
         return WearableRadioStatus(
             connected = serviceRepository.connectionState.value == ConnectionState.Connected,
             batteryLevel = node?.batteryLevel,
             voltage = node?.voltage,
             snr = node?.snrOrNull,
             lastSeen = node?.lastHeard?.toLong()?.times(MILLIS_PER_SECOND),
-            latitude = position?.latitude_i?.times(POSITION_SCALE),
-            longitude = position?.longitude_i?.times(POSITION_SCALE),
             temperature = node?.environmentMetrics?.temperature,
             relativeHumidity = node?.environmentMetrics?.relative_humidity,
         )
@@ -504,7 +501,6 @@ class WearableSyncService(
         private const val KEY_RADIO_STATUS = "radio_status_json"
         private const val KEY_TIMESTAMP = "timestamp"
         private const val MILLIS_PER_SECOND = 1_000L
-        private const val POSITION_SCALE = 1e-7
         private const val UNKNOWN_SHORT_NAME = "??"
         private val REPOSITORY_SYNC_DEBOUNCE = 750.milliseconds
     }

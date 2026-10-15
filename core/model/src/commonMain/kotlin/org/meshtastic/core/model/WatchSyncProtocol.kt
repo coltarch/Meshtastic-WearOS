@@ -43,8 +43,6 @@ data class WearableRadioStatus(
     val voltage: Float? = null,
     val snr: Float? = null,
     val lastSeen: Long? = null,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
     val temperature: Float? = null,
     val relativeHumidity: Float? = null,
 )

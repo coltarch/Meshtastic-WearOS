@@ -16,9 +16,11 @@
  */
 package org.meshtastic.wear.presentation.model
 
+import kotlinx.serialization.json.Json
 import org.meshtastic.core.model.WearableRadioStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class WearableSyncCategoryRepositoriesTest {
@@ -44,5 +46,17 @@ class WearableSyncCategoryRepositoriesTest {
         repository.updateStatus(null)
 
         assertNull(repository.status.value)
+    }
+
+    @Test
+    fun `serialized radio status carries no location`() {
+        val encoded =
+            Json.encodeToString(
+                WearableRadioStatus.serializer(),
+                WearableRadioStatus(connected = true, batteryLevel = 75),
+            )
+
+        assertFalse(encoded.contains("latitude"))
+        assertFalse(encoded.contains("longitude"))
     }
 }
