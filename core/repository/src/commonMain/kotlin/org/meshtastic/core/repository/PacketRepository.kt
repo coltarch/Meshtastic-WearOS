@@ -146,6 +146,7 @@ interface PacketRepository {
      *
      * The limit is applied by the database query so callers never load the full message history.
      */
+    @Suppress("SuspendFunWithFlowReturnType")
     suspend fun getRecentMessages(limit: Int, getNode: suspend (String?) -> Node): Flow<List<Pair<String, Message>>>
 
     /** Returns a paged flow of messages for a conversation. */

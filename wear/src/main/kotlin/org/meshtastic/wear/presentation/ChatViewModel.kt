@@ -21,9 +21,9 @@ package org.meshtastic.wear.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
@@ -63,6 +63,8 @@ class ChatViewModel(
                 } else {
                     Logger.w { "Wear reply could not be sent through the phone" }
                 }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (_: Exception) {
                 Logger.w { "Wear reply could not be sent through the phone" }
             }
@@ -76,6 +78,8 @@ class ChatViewModel(
                     WearDataLayerPaths.OPEN_CONVERSATION_ON_PHONE,
                     contactKey.encodeToByteArray(),
                 )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (_: Exception) {
                 Logger.w { "Conversation could not be opened on the phone" }
             }

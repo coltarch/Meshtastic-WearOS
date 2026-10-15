@@ -50,7 +50,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import org.meshtastic.core.common.util.nowMillis
@@ -86,7 +85,7 @@ import org.meshtastic.core.model.Channel as MeshChannel
 
 /** Synchronizes phone repositories with connected Wear OS nodes through the Wearable Data Layer. */
 @Single
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList", "SpreadOperator")
 class WearableSyncService(
     context: Context,
     private val watchPrefs: WatchPrefs,
@@ -123,11 +122,10 @@ class WearableSyncService(
         Logger.d { "Wearable synchronization started" }
 
         scope.launch {
-            val listenerRegistration =
-                safeCatching {
-                    capabilityClient.addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY).await()
-                }
-                    .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
+            val listenerRegistration = safeCatching {
+                capabilityClient.addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY).await()
+            }
+                .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
             if (listenerRegistration.isFailure) {
                 watchSyncStateHolder.reportWearServicesUnavailableUnlessActive()
                 return@launch
@@ -218,6 +216,7 @@ class WearableSyncService(
         }
     }
 
+    @Suppress("SuspendFunSwallowedCancellation")
     private suspend fun synchronizeConnectedWatch(targetNodeId: String? = null, reportDisconnectedAsError: Boolean) {
         try {
             performSynchronization(targetNodeId, reportDisconnectedAsError)
@@ -432,10 +431,11 @@ class WearableSyncService(
     ): Boolean = disabledCategories
         .map { category ->
             val uri = Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(category.dataPath).build()
-            val dataCleared =
-                safeCatching { dataClient.deleteDataItems(uri).await() }
-                    .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
-                    .isSuccess
+            val dataCleared = safeCatching {
+                dataClient.deleteDataItems(uri).await()
+            }
+                .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
+                .isSuccess
             val command = json.encodeToString(category).encodeToByteArray()
             val commandSent =
                 targetNodeIds
@@ -464,10 +464,11 @@ class WearableSyncService(
                 .asPutDataRequest()
                 .setUrgent()
 
-        val dataSent =
-            safeCatching { dataClient.putDataItem(dataRequest).await() }
-                .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
-                .isSuccess
+        val dataSent = safeCatching {
+            dataClient.putDataItem(dataRequest).await()
+        }
+            .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
+            .isSuccess
 
         val bytes = payload.encodeToByteArray()
         val messagesSent =

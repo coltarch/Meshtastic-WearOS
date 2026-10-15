@@ -125,7 +125,8 @@ class CorePrefsAndroidModule {
 }
 
 internal fun createWatchDataStore(context: Context, dispatchers: CoroutineDispatchers): WatchDataStore =
-    createPreferencesDataStore(context, dispatchers, legacyName = "watch-prefs", fileName = "watch_ds").asWatchDataStore()
+    createPreferencesDataStore(context, dispatchers, legacyName = "watch-prefs", fileName = "watch_ds")
+        .asWatchDataStore()
 
 /**
  * [legacyName] is the SharedPreferences file this domain migrates from, [fileName] the DataStore file it lives in now.

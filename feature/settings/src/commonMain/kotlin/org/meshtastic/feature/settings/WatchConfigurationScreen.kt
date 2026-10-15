@@ -154,6 +154,7 @@ internal fun WatchConfigurationScreen(
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun WatchSyncPreferences(
     state: WatchSettingsUiState,
     onWatchConnectivityChange: (Boolean) -> Unit,
@@ -213,7 +214,7 @@ private fun WatchSyncPreferences(
                             PreferenceDivider()
                             MessageRetentionPreference(
                                 selected = state.syncPreferences.recentMessageLimit,
-                                onSelected = onRecentMessageLimitChange,
+                                onSelect = onRecentMessageLimitChange,
                             )
                         }
                     }
@@ -240,9 +241,7 @@ private fun WatchSyncPreferences(
 @Composable
 private fun SyncSwitch(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val state =
-        stringResource(
-            if (checked) Res.string.watch_sync_state_enabled else Res.string.watch_sync_state_disabled,
-        )
+        stringResource(if (checked) Res.string.watch_sync_state_enabled else Res.string.watch_sync_state_disabled)
     val accessibilityState = stringResource(Res.string.watch_sync_state_description, title, state)
     SwitchPreference(
         title = title,
@@ -255,7 +254,7 @@ private fun SyncSwitch(title: String, summary: String, checked: Boolean, onCheck
 }
 
 @Composable
-private fun MessageRetentionPreference(selected: RecentMessageLimit, onSelected: (RecentMessageLimit) -> Unit) {
+private fun MessageRetentionPreference(selected: RecentMessageLimit, onSelect: (RecentMessageLimit) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -277,7 +276,7 @@ private fun MessageRetentionPreference(selected: RecentMessageLimit, onSelected:
                         text = { Text(stringResource(Res.string.watch_message_retention_option, limit.count)) },
                         onClick = {
                             expanded = false
-                            onSelected(limit)
+                            onSelect(limit)
                         },
                     )
                 }

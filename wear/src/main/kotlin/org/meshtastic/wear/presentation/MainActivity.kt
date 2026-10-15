@@ -149,7 +149,7 @@ internal fun WearNavigationHost(
             DMListScreen(onDMSelect = { contactKey -> navController.navigate("chat_view/$contactKey") })
         }
         composable("chat_view/{contactKey}") { backStackEntry ->
-            val contactKey = backStackEntry.arguments?.getString("contactKey") ?: ""
+            val contactKey = backStackEntry.arguments?.getString("contactKey").orEmpty()
             ChatScreen(contactKey)
         }
         composable(NODE_DETAILS_ROUTE) { backStackEntry ->

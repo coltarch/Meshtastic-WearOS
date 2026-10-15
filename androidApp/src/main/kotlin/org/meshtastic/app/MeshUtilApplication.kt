@@ -134,12 +134,11 @@ open class MeshUtilApplication :
      * whose connection is what makes an un-terminated Application unsafe.
      */
     protected open fun startBackgroundInit() {
-        applicationScope.launch {
-            restoreAppEntryPoints()
-            // Resolve and start the lazy singleton only after androidContext is available. WearableSyncService.start() is
-            // idempotent, so a listener-service wakeup racing app startup cannot create duplicate Flow collectors.
-            get<WearableSyncService>().start()
-        }
+        applicationScope.launch { restoreAppEntryPoints() }
+
+        // Resolve and start the lazy singleton only after androidContext is available. WearableSyncService.start() is
+        // idempotent, so a listener-service wakeup racing app startup cannot create duplicate Flow collectors.
+        applicationScope.launch { get<WearableSyncService>().start() }
 
         // Schedule periodic MeshLog cleanup. Off-main: WorkManager uses on-demand init here
         // (the startup provider is removed), so getInstance() opens WorkManager's Room DB.
@@ -221,7 +220,11 @@ open class MeshUtilApplication :
 
     override fun onTerminate() {
         // cancel() not cancelAndJoin(): joining under runBlocking on the main thread can deadlock.
-        get<WearableSyncService>().stop()
+        // WearableSyncService and the database live behind Koin, which never started on an
+        // unsupported device — guard before resolving either.
+        if (isSupportedDevice) {
+            get<WearableSyncService>().stop()
+        }
         cancelBackgroundInit()
         if (!isSupportedDevice) return super.onTerminate()
         try {
