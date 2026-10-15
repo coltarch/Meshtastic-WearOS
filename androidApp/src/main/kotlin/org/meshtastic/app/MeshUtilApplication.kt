@@ -220,7 +220,11 @@ open class MeshUtilApplication :
 
     override fun onTerminate() {
         // cancel() not cancelAndJoin(): joining under runBlocking on the main thread can deadlock.
-        get<WearableSyncService>().stop()
+        // WearableSyncService and the database live behind Koin, which never started on an
+        // unsupported device — guard before resolving either.
+        if (isSupportedDevice) {
+            get<WearableSyncService>().stop()
+        }
         cancelBackgroundInit()
         if (!isSupportedDevice) return super.onTerminate()
         try {
