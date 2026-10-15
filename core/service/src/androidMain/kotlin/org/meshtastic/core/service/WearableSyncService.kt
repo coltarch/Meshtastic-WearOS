@@ -49,7 +49,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import org.meshtastic.core.common.util.nowMillis
@@ -79,6 +78,7 @@ import org.meshtastic.core.repository.WatchSyncStage
 import org.meshtastic.core.repository.WatchSyncStateHolder
 import org.meshtastic.core.repository.toSyncPlan
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import com.google.android.gms.wearable.Node as DataLayerNode
 import kotlinx.coroutines.channels.Channel as CoroutineChannel
 import org.meshtastic.core.model.Channel as MeshChannel
@@ -123,7 +123,9 @@ class WearableSyncService(
 
         scope.launch {
             val listenerRegistration = safeCatching {
-                capabilityClient.addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY).await()
+                capabilityClient
+                    .addListener(capabilityListener, WATCH_COMPANION_SYNC_CAPABILITY)
+                    .awaitOrThrow(CONNECTION_TIMEOUT, "Capability listener registration timed out")
             }
                 .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
             if (listenerRegistration.isFailure) {
@@ -134,7 +136,7 @@ class WearableSyncService(
             safeCatching {
                 capabilityClient
                     .getCapability(WATCH_COMPANION_SYNC_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
-                    .await()
+                    .awaitOrThrow(CONNECTION_TIMEOUT, "Capability query timed out")
             }
                 .onSuccess(::onCapabilityChanged)
                 .onFailure {
@@ -429,7 +431,7 @@ class WearableSyncService(
         .map { category ->
             val uri = Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(category.dataPath).build()
             val dataCleared = safeCatching {
-                dataClient.deleteDataItems(uri).await()
+                dataClient.deleteDataItems(uri).awaitOrThrow(COMMAND_TIMEOUT, "Data Layer delete timed out")
             }
                 .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
                 .isSuccess
@@ -437,7 +439,11 @@ class WearableSyncService(
             val commandSent =
                 targetNodeIds
                     .map { nodeId ->
-                        safeCatching { messageClient.sendMessage(nodeId, PATH_CLEAR_CATEGORY, command).await() }
+                        safeCatching {
+                            messageClient
+                                .sendMessage(nodeId, PATH_CLEAR_CATEGORY, command)
+                                .awaitOrThrow(COMMAND_TIMEOUT, "Clear-category command timed out")
+                        }
                             .onFailure { failureLogger.log(WearableFailureLog.MessageSynchronization, it) }
                             .isSuccess
                     }
@@ -462,7 +468,7 @@ class WearableSyncService(
                 .setUrgent()
 
         val dataSent = safeCatching {
-            dataClient.putDataItem(dataRequest).await()
+            dataClient.putDataItem(dataRequest).awaitOrThrow(SYNC_TIMEOUT, "Data item send timed out")
         }
             .onFailure { failureLogger.log(WearableFailureLog.DataSynchronization, it) }
             .isSuccess
@@ -471,7 +477,11 @@ class WearableSyncService(
         val messagesSent =
             targetNodeIds
                 .map {
-                    safeCatching { messageClient.sendMessage(it, path, bytes).await() }
+                    safeCatching {
+                        messageClient
+                            .sendMessage(it, path, bytes)
+                            .awaitOrThrow(SYNC_TIMEOUT, "Payload message send timed out")
+                    }
                         .onFailure { failure -> failureLogger.log(WearableFailureLog.MessageSynchronization, failure) }
                         .isSuccess
                 }
@@ -481,7 +491,11 @@ class WearableSyncService(
 
     private suspend fun sendSyncStatus(path: String, targetNodeIds: List<String>): Boolean = targetNodeIds
         .map { nodeId ->
-            safeCatching { messageClient.sendMessage(nodeId, path, null).await() }
+            safeCatching {
+                messageClient
+                    .sendMessage(nodeId, path, null)
+                    .awaitOrThrow(COMMAND_TIMEOUT, "Sync status message timed out")
+            }
                 .onFailure { failure -> failureLogger.log(WearableFailureLog.MessageSynchronization, failure) }
                 .isSuccess
         }
@@ -522,9 +536,10 @@ private suspend fun CapabilityClient.findReachableWatchNodes(
     val attempts = if (retryWhileSearching) MANUAL_CONNECTION_SEARCH_ATTEMPTS else 1
     repeat(attempts) { attempt ->
         val result = safeCatching {
-            getCapability(WATCH_COMPANION_SYNC_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes.filter {
-                targetNodeId == null || it.id == targetNodeId
-            }
+            getCapability(WATCH_COMPANION_SYNC_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
+                .awaitOrThrow(CONNECTION_TIMEOUT, "Capability query timed out")
+                .nodes
+                .filter { targetNodeId == null || it.id == targetNodeId }
         }
         if (result.isFailure || result.getOrThrow().isNotEmpty() || attempt == attempts - 1) return result
         delay(MANUAL_CONNECTION_SEARCH_INTERVAL)
@@ -534,6 +549,9 @@ private suspend fun CapabilityClient.findReachableWatchNodes(
 
 private const val MANUAL_CONNECTION_SEARCH_ATTEMPTS = 4
 private val MANUAL_CONNECTION_SEARCH_INTERVAL = 1_250.milliseconds
+private val CONNECTION_TIMEOUT = 5.seconds
+private val COMMAND_TIMEOUT = 10.seconds
+private val SYNC_TIMEOUT = 30.seconds
 
 private val WatchSyncCategory.dataPath: String
     get() =
