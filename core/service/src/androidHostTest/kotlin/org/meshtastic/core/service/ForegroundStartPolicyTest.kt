@@ -209,6 +209,26 @@ class ForegroundStartPolicyTest {
         }
     }
 
+    @Test
+    fun `a watch never claims the location type`() {
+        listOf(ANDROID_10, ANDROID_12, ANDROID_13, ANDROID_14, ANDROID_17).forEach { sdk ->
+            listOf(true, false).forEach { hasLocation ->
+                listOf(true, false).forEach { visible ->
+                    assertEquals(
+                        CONNECTED_DEVICE,
+                        ForegroundStartPolicy.foregroundServiceType(
+                            hasLocationPermission = hasLocation,
+                            appInForeground = visible,
+                            sdkInt = sdk,
+                            isWatch = true,
+                        ),
+                        "a watch must never claim location on API $sdk (location=$hasLocation, visible=$visible)",
+                    )
+                }
+            }
+        }
+    }
+
     // endregion
 
     // region fallback type

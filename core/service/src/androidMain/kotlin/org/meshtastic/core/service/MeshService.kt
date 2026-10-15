@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.android.inject
 import org.meshtastic.core.common.hasLocationPermission
+import org.meshtastic.core.common.isWatchDevice
 import org.meshtastic.core.common.state.RadioOperationLock
 import org.meshtastic.core.common.util.isValidDeviceAddress
 import org.meshtastic.core.model.DeviceVersion
@@ -158,6 +159,7 @@ class MeshService : Service() {
             ForegroundStartPolicy.foregroundServiceType(
                 hasLocationPermission = hasLocationPermission(precise = true),
                 appInForeground = isAppInForeground(),
+                isWatch = isWatchDevice(),
             )
 
         // Start foreground FIRST. Android requires startForeground() within ~5s of onStartCommand and before any
