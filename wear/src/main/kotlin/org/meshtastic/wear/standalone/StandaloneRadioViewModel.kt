@@ -185,26 +185,23 @@ class StandaloneRadioViewModel(
 
     private fun observeConnectionState(controller: RadioController, deviceName: String?) {
         connectionStateJob?.cancel()
-        connectionStateJob =
-            viewModelScope.launch {
-                controller.connectionState.collect { connectionState ->
-                    mutableState.value =
-                        when (connectionState) {
-                            ConnectionState.Connected -> StandaloneRadioState.Connected(deviceName)
-
-                            ConnectionState.Connecting -> StandaloneRadioState.Connecting(deviceName)
-
-                            ConnectionState.Disconnected,
-                            ConnectionState.DeviceSleep,
-                            ->
-                                if (mutableState.value is StandaloneRadioState.Connected) {
-                                    StandaloneRadioState.Ready
-                                } else {
-                                    mutableState.value
-                                }
-                        }
-                }
+        connectionStateJob = viewModelScope.launch {
+            controller.connectionState.collect { connectionState ->
+                mutableState.value =
+                    when (connectionState) {
+                        ConnectionState.Connected -> StandaloneRadioState.Connected(deviceName)
+                        ConnectionState.Connecting -> StandaloneRadioState.Connecting(deviceName)
+                        ConnectionState.Disconnected,
+                        ConnectionState.DeviceSleep,
+                        ->
+                            if (mutableState.value is StandaloneRadioState.Connected) {
+                                StandaloneRadioState.Ready
+                            } else {
+                                mutableState.value
+                            }
+                    }
             }
+        }
     }
 
     override fun onCleared() {

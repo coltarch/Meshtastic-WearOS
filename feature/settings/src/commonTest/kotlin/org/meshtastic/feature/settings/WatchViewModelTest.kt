@@ -89,13 +89,14 @@ class WatchViewModelTest {
             awaitItem()
 
             watchPrefs.watchConnectivityEnabled.value = false
-            watchPrefs.syncPreferences.value = WatchSyncPreferences(
-                syncNodes = false,
-                syncChannels = false,
-                syncRecentMessages = false,
-                syncQuickReplies = false,
-                syncRadioStatus = false,
-            )
+            watchPrefs.syncPreferences.value =
+                WatchSyncPreferences(
+                    syncNodes = false,
+                    syncChannels = false,
+                    syncRecentMessages = false,
+                    syncQuickReplies = false,
+                    syncRadioStatus = false,
+                )
             runCurrent()
 
             assertEquals(
