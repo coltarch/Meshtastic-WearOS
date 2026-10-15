@@ -15,6 +15,10 @@ name: Fork Check
 #
 # Fork-only file: it is not in upstream, so it will never arrive via a merge and
 # must be kept when the fork is re-based onto upstream.
+#
+# `main` is in the push list for the same reason as the branches above. Upstream's
+# main-check.yml carries the same repository guard, so a push to main here runs
+# nothing and still reports green.
 
 on:
   workflow_dispatch:
@@ -22,6 +26,7 @@ on:
     branches:
       - "feat/**"
       - "fork/**"
+      - "main"
   pull_request:
     branches: [main]
 
