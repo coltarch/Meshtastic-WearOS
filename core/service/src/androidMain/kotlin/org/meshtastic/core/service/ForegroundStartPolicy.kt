@@ -85,16 +85,19 @@ object ForegroundStartPolicy {
      * @param hasLocationPermission whether `ACCESS_FINE_LOCATION` is granted.
      * @param appInForeground whether this process currently holds a user-visible component.
      * @param sdkInt the running platform API level.
+     * @param isWatch whether this is a Wear OS device, which never claims the `location` type.
      */
     fun foregroundServiceType(
         hasLocationPermission: Boolean,
         appInForeground: Boolean,
         sdkInt: Int = Build.VERSION.SDK_INT,
+        isWatch: Boolean = false,
     ): Int {
         if (sdkInt < SDK_SERVICE_TYPES) return 0
 
         val canClaimLocation =
-            hasLocationPermission &&
+            !isWatch &&
+                hasLocationPermission &&
                 // From Android 14 the location type is while-in-use restricted at start time. The app does not declare
                 // ACCESS_BACKGROUND_LOCATION, so a background start can never hold it.
                 (sdkInt < SDK_WHILE_IN_USE_ENFORCED || appInForeground)

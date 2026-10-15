@@ -102,3 +102,6 @@ fun Context.hasLocationPermission(precise: Boolean): Boolean {
     return granted(Manifest.permission.ACCESS_FINE_LOCATION) ||
         (!precise && granted(Manifest.permission.ACCESS_COARSE_LOCATION))
 }
+
+/** True when running on a Wear OS device, where the radio link is the service's only job. */
+fun Context.isWatchDevice(): Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
