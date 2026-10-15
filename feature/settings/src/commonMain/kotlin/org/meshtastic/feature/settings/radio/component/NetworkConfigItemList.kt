@@ -55,6 +55,7 @@ import org.meshtastic.core.resources.nfc_disabled
 import org.meshtastic.core.resources.open_settings
 import org.meshtastic.core.resources.scan_nfc
 import org.meshtastic.core.resources.schema_network_address_mode
+import org.meshtastic.core.resources.schema_network_enabled_protocols
 import org.meshtastic.core.resources.schema_network_eth_enabled
 import org.meshtastic.core.resources.schema_network_eth_enabled_description
 import org.meshtastic.core.resources.schema_network_ipv4_dns
@@ -85,10 +86,15 @@ import org.meshtastic.core.ui.component.TitledCard
 import org.meshtastic.core.ui.util.LocalBarcodeScannerProvider
 import org.meshtastic.core.ui.util.LocalNfcScannerProvider
 import org.meshtastic.core.ui.util.LocalNfcScannerSupported
+import org.meshtastic.feature.settings.navigation.ConfigRoute
 import org.meshtastic.feature.settings.radio.RadioConfigViewModel
 import org.meshtastic.feature.settings.radio.RebootBehavior
+import org.meshtastic.feature.settings.search.SettingsSearchCatalog
 import org.meshtastic.proto.Config
 import org.meshtastic.proto.enabled_protocols
+
+/** The one network field the Ethernet card renders; every other non-Wi-Fi field lives in the advanced card. */
+internal const val ETHERNET_ENABLED_KEY = "schema_network_eth_enabled"
 
 @Composable
 private fun ScanErrorDialog(onDismiss: () -> Unit = {}) =
@@ -170,6 +176,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
         configState = formState,
         enabled = state.connected,
         responseState = state.responseState,
+        showConnectPrompt = state.connectPromptVisible,
         onDismissPacketResponse = viewModel::clearPacketResponse,
         onSave = {
             val config = Config.Builder().also { wb -> wb.network = it }.build()
@@ -206,10 +213,16 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
             }
         }
 
-        item {
+        val (wifiKeys, otherKeys) =
+            splitFieldKeys(SettingsSearchCatalog.fieldKeys(ConfigRoute.NETWORK.route)) {
+                it.startsWith("schema_network_wifi_")
+            }
+        val (ethernetKeys, advancedKeys) = splitFieldKeys(otherKeys) { it == ETHERNET_ENABLED_KEY }
+        fieldItem(wifiKeys) {
             TitledCard(title = stringResource(Res.string.wifi_config)) {
                 SwitchPreference(
                     title = stringResource(Res.string.schema_network_wifi_enabled),
+                    modifier = Modifier.settingsField(Res.string.schema_network_wifi_enabled),
                     summary = stringResource(Res.string.schema_network_wifi_enabled_description),
                     checked = formState.value.wifi_enabled,
                     onCheckedChange = {
@@ -221,6 +234,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     HorizontalDivider()
                     EditTextPreference(
                         title = stringResource(Res.string.schema_network_wifi_ssid),
+                        modifier = Modifier.settingsField(Res.string.schema_network_wifi_ssid),
                         summary = stringResource(Res.string.schema_network_wifi_ssid_description),
                         value = formState.value.wifi_ssid,
                         maxSize = 32, // wifi_ssid max_size:33
@@ -236,6 +250,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     HorizontalDivider()
                     EditPasswordPreference(
                         title = stringResource(Res.string.schema_network_wifi_psk),
+                        modifier = Modifier.settingsField(Res.string.schema_network_wifi_psk),
                         value = formState.value.wifi_psk,
                         maxSize = 64, // wifi_psk max_size:65
                         enabled = state.connected,
@@ -261,10 +276,11 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
             }
         }
         if (state.metadata?.hasEthernet == true) {
-            item {
+            fieldItem(ethernetKeys) {
                 TitledCard(title = stringResource(Res.string.ethernet_config)) {
                     SwitchPreference(
                         title = stringResource(Res.string.schema_network_eth_enabled),
+                        modifier = Modifier.settingsField(Res.string.schema_network_eth_enabled),
                         summary = stringResource(Res.string.schema_network_eth_enabled_description),
                         checked = formState.value.eth_enabled,
                         onCheckedChange = {
@@ -275,10 +291,11 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                 }
             }
         }
-        item {
+        fieldItem(advancedKeys) {
             TitledCard(title = stringResource(Res.string.advanced)) {
                 EditTextPreference(
                     title = stringResource(Res.string.schema_network_ntp_server),
+                    modifier = Modifier.settingsField(Res.string.schema_network_ntp_server),
                     summary = stringResource(Res.string.schema_network_ntp_server_description),
                     value = formState.value.ntp_server,
                     maxSize = 32, // ntp_server max_size:33
@@ -294,6 +311,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                 HorizontalDivider()
                 EditTextPreference(
                     title = stringResource(Res.string.schema_network_rsyslog_server),
+                    modifier = Modifier.settingsField(Res.string.schema_network_rsyslog_server),
                     value = formState.value.rsyslog_server,
                     maxSize = 32, // rsyslog_server max_size:33
                     enabled = state.connected,
@@ -309,6 +327,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                 if (capabilities.offers(Config.NetworkConfig.enabled_protocols)) {
                     SwitchPreference(
                         title = stringResource(Res.string.udp_enabled),
+                        modifier = Modifier.settingsField(Res.string.schema_network_enabled_protocols),
                         summary = stringResource(Res.string.config_network_udp_enabled_summary),
                         checked =
                         formState.value.enabled_protocols and
@@ -331,6 +350,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                 }
                 DropDownPreference(
                     title = stringResource(Res.string.schema_network_address_mode),
+                    modifier = Modifier.settingsField(Res.string.schema_network_address_mode),
                     enabled = state.connected,
                     selectedItem = formState.value.address_mode,
                     onItemSelected = {
@@ -342,6 +362,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     val ipv4 = formState.value.ipv4_config ?: Config.NetworkConfig.IpV4Config.Builder().build()
                     EditIPv4Preference(
                         title = stringResource(Res.string.schema_network_ipv4_ip),
+                        modifier = Modifier.settingsField(Res.string.schema_network_ipv4_ip),
                         value = ipv4.ip,
                         enabled = state.connected,
                         onValueChanged = {
@@ -356,6 +377,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     HorizontalDivider()
                     EditIPv4Preference(
                         title = stringResource(Res.string.schema_network_ipv4_gateway),
+                        modifier = Modifier.settingsField(Res.string.schema_network_ipv4_gateway),
                         value = ipv4.gateway,
                         enabled = state.connected,
                         onValueChanged = {
@@ -372,6 +394,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     HorizontalDivider()
                     EditIPv4Preference(
                         title = stringResource(Res.string.schema_network_ipv4_subnet),
+                        modifier = Modifier.settingsField(Res.string.schema_network_ipv4_subnet),
                         value = ipv4.subnet,
                         enabled = state.connected,
                         onValueChanged = {
@@ -388,6 +411,7 @@ fun NetworkConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit, onO
                     HorizontalDivider()
                     EditIPv4Preference(
                         title = stringResource(Res.string.schema_network_ipv4_dns),
+                        modifier = Modifier.settingsField(Res.string.schema_network_ipv4_dns),
                         value = ipv4.dns,
                         enabled = state.connected,
                         onValueChanged = {
