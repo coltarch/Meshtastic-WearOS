@@ -190,7 +190,9 @@ class StandaloneRadioViewModel(
                 mutableState.value =
                     when (connectionState) {
                         ConnectionState.Connected -> StandaloneRadioState.Connected(deviceName)
+
                         ConnectionState.Connecting -> StandaloneRadioState.Connecting(deviceName)
+
                         ConnectionState.Disconnected,
                         ConnectionState.DeviceSleep,
                         ->
