@@ -98,8 +98,10 @@ import org.meshtastic.core.ui.component.EditPasswordPreference
 import org.meshtastic.core.ui.component.EditTextPreference
 import org.meshtastic.core.ui.component.SwitchPreference
 import org.meshtastic.core.ui.component.TitledCard
+import org.meshtastic.feature.settings.navigation.ModuleRoute
 import org.meshtastic.feature.settings.radio.RadioConfigViewModel
 import org.meshtastic.feature.settings.radio.RebootBehavior
+import org.meshtastic.feature.settings.search.SettingsSearchCatalog
 import org.meshtastic.proto.ModuleConfig
 import org.meshtastic.proto.json_enabled
 
@@ -146,6 +148,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
         configState = formState,
         enabled = state.connected && consentValid,
         responseState = state.responseState,
+        showConnectPrompt = state.connectPromptVisible,
         onDismissPacketResponse = viewModel::clearPacketResponse,
         onSave = {
             val config = ModuleConfig.Builder().also { wb -> wb.mqtt = it }.build()
@@ -174,10 +177,15 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
             }
         }
 
-        item {
+        val mqttKeys =
+            splitFieldKeys(SettingsSearchCatalog.fieldKeys(ModuleRoute.MQTT.route)) {
+                it != "schema_mqtt_map_reporting_enabled" && !it.startsWith("schema_mapreportsettings_")
+            }
+        fieldItem(mqttKeys.first) {
             TitledCard(title = stringResource(Res.string.mqtt_config)) {
                 SwitchPreference(
                     title = stringResource(Res.string.schema_mqtt_enabled),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_enabled),
                     summary = stringResource(Res.string.schema_mqtt_enabled_description),
                     checked = formState.value.enabled,
                     enabled = state.connected,
@@ -198,6 +206,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 HorizontalDivider()
                 EditTextPreference(
                     title = stringResource(Res.string.schema_mqtt_username),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_username),
                     summary = stringResource(Res.string.schema_mqtt_username_description),
                     value = formState.value.username,
                     maxSize = 63, // username max_size:64
@@ -213,6 +222,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 HorizontalDivider()
                 EditPasswordPreference(
                     title = stringResource(Res.string.schema_mqtt_password),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_password),
                     value = formState.value.password,
                     maxSize = 63, // password max_size:64
                     enabled = state.connected,
@@ -224,6 +234,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 HorizontalDivider()
                 SwitchPreference(
                     title = stringResource(Res.string.schema_mqtt_encryption_enabled),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_encryption_enabled),
                     summary = stringResource(Res.string.schema_mqtt_encryption_enabled_description),
                     checked = formState.value.encryption_enabled,
                     enabled = state.connected,
@@ -256,6 +267,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 HorizontalDivider()
                 EditTextPreference(
                     title = stringResource(Res.string.schema_mqtt_root),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_root),
                     summary = stringResource(Res.string.schema_mqtt_root_description),
                     value = formState.value.root,
                     maxSize = 31, // root max_size:32
@@ -271,6 +283,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
                 HorizontalDivider()
                 SwitchPreference(
                     title = stringResource(Res.string.schema_mqtt_proxy_to_client_enabled),
+                    modifier = Modifier.settingsField(Res.string.schema_mqtt_proxy_to_client_enabled),
                     summary = stringResource(Res.string.schema_mqtt_proxy_to_client_enabled_description),
                     checked = formState.value.proxy_to_client_enabled,
                     enabled = state.connected,
@@ -283,7 +296,7 @@ fun MQTTConfigScreen(viewModel: RadioConfigViewModel, onBack: () -> Unit) {
             }
         }
 
-        item {
+        fieldItem(mqttKeys.second) {
             TitledCard(title = stringResource(Res.string.schema_mqtt_map_reporting_enabled)) {
                 val mapReportSettings =
                     formState.value.map_report_settings ?: ModuleConfig.MapReportSettings.Builder().build()
@@ -347,7 +360,7 @@ internal fun MqttTlsPreference(
         summary = if (relayForcesTls) stringResource(Res.string.tls_enabled_public_broker_summary) else "",
         checked = tlsEnabled,
         enabled = enabled,
-        modifier = Modifier.testTag(MQTT_TLS_SWITCH_TEST_TAG),
+        modifier = Modifier.settingsField(Res.string.schema_mqtt_tls_enabled).testTag(MQTT_TLS_SWITCH_TEST_TAG),
         onCheckedChange = onCheckedChange,
         containerColor = CardDefaults.cardColors().containerColor,
     )
@@ -419,6 +432,7 @@ private fun MqttAddressAndProbe(
 ) {
     EditTextPreference(
         title = stringResource(Res.string.schema_mqtt_address),
+        modifier = Modifier.settingsField(Res.string.schema_mqtt_address),
         summary = stringResource(Res.string.schema_mqtt_address_description),
         value = formState.value.address,
         maxSize = 63, // address max_size:64
