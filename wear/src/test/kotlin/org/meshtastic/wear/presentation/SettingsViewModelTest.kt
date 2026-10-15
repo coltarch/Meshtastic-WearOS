@@ -23,18 +23,12 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.meshtastic.core.repository.RecentMessageLimit
-import org.meshtastic.core.repository.WatchPrefs
-import org.meshtastic.core.repository.WatchSyncPreferences
-import org.meshtastic.core.repository.WearOperatingMode
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.data.WearDataLayerClient
-import org.meshtastic.wear.di.WearStartupState
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class SettingsViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
@@ -47,34 +41,6 @@ class SettingsViewModelTest {
     @AfterTest
     fun tearDown() {
         Dispatchers.resetMain()
-    }
-
-    @Test
-    fun `confirmed mode is persisted without replacing the active graph`() = runTest(dispatcher) {
-        val prefs = RecordingWatchPrefs()
-        val startupState = WearStartupState().also { it.initialize(WearOperatingMode.COMPANION, true) }
-        val viewModel = SettingsViewModel(prefs, startupState)
-
-        viewModel.requestOperatingMode(WearOperatingMode.STANDALONE_RADIO)
-        viewModel.confirmOperatingModeChange()
-        advanceUntilIdle()
-
-        assertEquals(WearOperatingMode.STANDALONE_RADIO, prefs.operatingMode.value)
-        assertEquals(WearOperatingMode.COMPANION, startupState.operatingMode.value)
-    }
-
-    @Test
-    fun `cancelling confirmation leaves the stored mode unchanged`() = runTest(dispatcher) {
-        val prefs = RecordingWatchPrefs()
-        val viewModel =
-            SettingsViewModel(prefs, WearStartupState().also { it.initialize(WearOperatingMode.COMPANION, true) })
-
-        viewModel.requestOperatingMode(WearOperatingMode.STANDALONE_RADIO)
-        viewModel.cancelOperatingModeChange()
-        advanceUntilIdle()
-
-        assertEquals(WearOperatingMode.COMPANION, prefs.operatingMode.value)
-        assertNull(viewModel.confirmationMode.value)
     }
 
     @Test
@@ -98,63 +64,4 @@ private class RecordingDataLayerClient : WearDataLayerClient {
     }
 
     override suspend fun sendCommand(path: String, payload: ByteArray?): Boolean = true
-}
-
-private class RecordingWatchPrefs : WatchPrefs {
-    override val operatingMode = MutableStateFlow(WearOperatingMode.COMPANION)
-    override val watchConnectivityEnabled = MutableStateFlow(true)
-    override val syncPreferences = MutableStateFlow(WatchSyncPreferences())
-    override val highContrastModeEnabled = MutableStateFlow(false)
-    override val syncRequest = MutableStateFlow(0L)
-    override val lastSuccessfulSyncMillis = MutableStateFlow<Long?>(null)
-
-    override fun setOperatingMode(mode: WearOperatingMode) {
-        operatingMode.value = mode
-    }
-
-    override suspend fun readOperatingMode(): WearOperatingMode = operatingMode.value
-
-    override suspend fun setOperatingModeAndWait(mode: WearOperatingMode) {
-        operatingMode.value = mode
-    }
-
-    override fun setWatchConnectivityEnabled(enabled: Boolean) {
-        watchConnectivityEnabled.value = enabled
-    }
-
-    override fun setSyncNodesEnabled(enabled: Boolean) {
-        syncPreferences.value = syncPreferences.value.copy(syncNodes = enabled)
-    }
-
-    override fun setSyncChannelsEnabled(enabled: Boolean) {
-        syncPreferences.value = syncPreferences.value.copy(syncChannels = enabled)
-    }
-
-    override fun setSyncRecentMessagesEnabled(enabled: Boolean) {
-        syncPreferences.value = syncPreferences.value.copy(syncRecentMessages = enabled)
-    }
-
-    override fun setRecentMessageLimit(limit: RecentMessageLimit) {
-        syncPreferences.value = syncPreferences.value.copy(recentMessageLimit = limit)
-    }
-
-    override fun setSyncQuickRepliesEnabled(enabled: Boolean) {
-        syncPreferences.value = syncPreferences.value.copy(syncQuickReplies = enabled)
-    }
-
-    override fun setSyncRadioStatusEnabled(enabled: Boolean) {
-        syncPreferences.value = syncPreferences.value.copy(syncRadioStatus = enabled)
-    }
-
-    override fun setHighContrastModeEnabled(enabled: Boolean) {
-        highContrastModeEnabled.value = enabled
-    }
-
-    override fun requestSync() {
-        syncRequest.value += 1
-    }
-
-    override suspend fun setLastSuccessfulSyncMillis(timestampMillis: Long) {
-        lastSuccessfulSyncMillis.value = timestampMillis
-    }
 }

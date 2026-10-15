@@ -42,26 +42,7 @@ class WearStartupStateTest {
     }
 
     @Test
-    fun `companion remains the startup default`() {
-        assertEquals(
-            WearOperatingMode.COMPANION,
-            selectWearStartupMode(WearOperatingMode.COMPANION, standaloneSupported = true),
-        )
-    }
-
-    @Test
-    fun `unsupported standalone startup falls back to companion`() {
-        assertEquals(
-            WearOperatingMode.COMPANION,
-            selectWearStartupMode(WearOperatingMode.STANDALONE_RADIO, standaloneSupported = false),
-        )
-    }
-
-    @Test
-    fun `supported standalone startup remains standalone`() {
-        assertEquals(
-            WearOperatingMode.STANDALONE_RADIO,
-            selectWearStartupMode(WearOperatingMode.STANDALONE_RADIO, standaloneSupported = true),
-        )
+    fun `startup always selects companion mode`() {
+        assertEquals(WearOperatingMode.COMPANION, selectWearStartupMode())
     }
 }

@@ -65,7 +65,7 @@ class WearApplication : Application() {
         applicationScope.launch {
             try {
                 val storedMode = readStoredMode()
-                val startupMode = selectWearStartupMode(storedMode, standaloneSupported)
+                val startupMode = selectWearStartupMode()
 
                 updateCompanionCapability(startupMode)
                 loadModeGraph(startupMode, storedMode, standaloneSupported)
@@ -113,7 +113,7 @@ class WearApplication : Application() {
 
     private fun loadModeGraph(mode: WearOperatingMode, restartMode: WearOperatingMode, standaloneSupported: Boolean) {
         val koin = GlobalContext.get()
-        loadKoinModules(wearModeModule(mode))
+        loadKoinModules(wearModeModule())
         koin.get<WearStartupState>().initialize(mode, standaloneSupported, restartMode)
     }
 

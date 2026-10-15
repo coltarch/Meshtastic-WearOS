@@ -64,9 +64,5 @@ class WearStartupState {
     }
 }
 
-internal fun selectWearStartupMode(storedMode: WearOperatingMode, standaloneSupported: Boolean): WearOperatingMode =
-    if (storedMode == WearOperatingMode.STANDALONE_RADIO && standaloneSupported) {
-        WearOperatingMode.STANDALONE_RADIO
-    } else {
-        WearOperatingMode.COMPANION
-    }
+// shortcut: standalone is parked (B1/B2 unfixed) — companion-only until it is brought back.
+internal fun selectWearStartupMode(): WearOperatingMode = WearOperatingMode.COMPANION

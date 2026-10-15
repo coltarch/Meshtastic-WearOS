@@ -48,19 +48,16 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import org.meshtastic.core.repository.WearOperatingMode
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.error
 import org.meshtastic.core.resources.retry
 import org.meshtastic.wear.di.WearStartupState
 import org.meshtastic.wear.di.WearStartupStatus
 import org.meshtastic.wear.presentation.theme.MeshWatchTheme
-import org.meshtastic.wear.standalone.StandaloneRadioScreen
 
 private const val MAIN_PAGER_ROUTE = "main_pager"
 private const val NODE_DETAILS_ROUTE = "node_detail/{nodeNum}"
 private const val COMPANION_PAGE_COUNT = 3
-private const val STANDALONE_PAGE_COUNT = 2
 internal const val NODE_DETAILS_UNAVAILABLE_ROUTE = "node_detail/unavailable"
 
 internal fun nodeDetailsRoute(nodeNum: Int): String = "node_detail/$nodeNum"
@@ -94,8 +91,6 @@ class MainActivity : ComponentActivity() {
                                             navController.navigate("chat_view/$contactKey")
                                         },
                                         onNodeSelect = { nodeNum -> navController.navigate(nodeDetailsRoute(nodeNum)) },
-                                        onRestartApp = ::restartApp,
-                                        operatingMode = status.mode,
                                     )
                                 },
                                 nodeDetailsContent = { nodeNum ->
@@ -159,7 +154,7 @@ internal fun WearNavigationHost(
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Root pager — Companion: Nodes → Messages → Settings; Standalone: Radio → Settings
+//  Root pager — Nodes → Messages → Settings
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun MainPagerScreen(
@@ -167,11 +162,8 @@ fun MainPagerScreen(
     onNavigateToDMs: () -> Unit,
     onThreadSelect: (String) -> Unit,
     onNodeSelect: (Int) -> Unit,
-    onRestartApp: () -> Unit,
-    operatingMode: WearOperatingMode,
 ) {
-    val pageCount = if (operatingMode == WearOperatingMode.COMPANION) COMPANION_PAGE_COUNT else STANDALONE_PAGE_COUNT
-    val pagerState = rememberPagerState(pageCount = { pageCount })
+    val pagerState = rememberPagerState(pageCount = { COMPANION_PAGE_COUNT })
     HorizontalPagerScaffold(
         pagerState = pagerState,
         pageIndicator = {
@@ -179,19 +171,10 @@ fun MainPagerScreen(
         },
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            when (operatingMode) {
-                WearOperatingMode.COMPANION ->
-                    when (page) {
-                        0 -> NodesScreen(onNodeSelect = onNodeSelect)
-                        1 -> MessagesRootScreen(onNavigateToChats, onNavigateToDMs, onThreadSelect)
-                        2 -> SettingsScreen(onRestartApp = onRestartApp)
-                    }
-
-                WearOperatingMode.STANDALONE_RADIO ->
-                    when (page) {
-                        0 -> StandaloneRadioScreen()
-                        1 -> SettingsScreen(onRestartApp = onRestartApp)
-                    }
+            when (page) {
+                0 -> NodesScreen(onNodeSelect = onNodeSelect)
+                1 -> MessagesRootScreen(onNavigateToChats, onNavigateToDMs, onThreadSelect)
+                2 -> SettingsScreen()
             }
         }
     }
