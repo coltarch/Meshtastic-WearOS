@@ -517,9 +517,6 @@ class WearableSyncService(
         private const val MILLIS_PER_SECOND = 1_000L
         private const val UNKNOWN_SHORT_NAME = "??"
         private val REPOSITORY_SYNC_DEBOUNCE = 750.milliseconds
-        private val CONNECTION_TIMEOUT = 5.seconds
-        private val COMMAND_TIMEOUT = 10.seconds
-        private val SYNC_TIMEOUT = 30.seconds
     }
 }
 
@@ -552,6 +549,9 @@ private suspend fun CapabilityClient.findReachableWatchNodes(
 
 private const val MANUAL_CONNECTION_SEARCH_ATTEMPTS = 4
 private val MANUAL_CONNECTION_SEARCH_INTERVAL = 1_250.milliseconds
+private val CONNECTION_TIMEOUT = 5.seconds
+private val COMMAND_TIMEOUT = 10.seconds
+private val SYNC_TIMEOUT = 30.seconds
 
 private val WatchSyncCategory.dataPath: String
     get() =

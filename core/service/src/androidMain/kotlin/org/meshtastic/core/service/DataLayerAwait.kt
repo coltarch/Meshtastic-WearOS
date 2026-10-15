@@ -24,9 +24,9 @@ import kotlin.time.Duration
 /**
  * Awaits a Data Layer [Task] or throws when it does not complete within [timeout].
  *
- * Play Services `Task`s can hang rather than fail when the connection drops, so every await is
- * bounded. A timeout surfaces as the given [timeoutMessage] so the caller's existing failure path
- * (its `safeCatching` + failure logger) records it instead of reporting a silent success.
+ * Play Services `Task`s can hang rather than fail when the connection drops, so every await is bounded. A timeout
+ * surfaces as the given [timeoutMessage] so the caller's existing failure path (its `safeCatching` + failure logger)
+ * records it instead of reporting a silent success.
  */
 internal suspend fun <T> Task<T>.awaitOrThrow(timeout: Duration, timeoutMessage: String): T =
     withTimeoutOrNull(timeout) { await() } ?: error(timeoutMessage)
