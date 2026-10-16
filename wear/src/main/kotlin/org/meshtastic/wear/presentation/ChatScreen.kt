@@ -62,6 +62,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.input.RemoteInputIntentHelper
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import org.meshtastic.core.common.util.DateFormatter
 import org.meshtastic.core.model.MessageStatus
 import org.meshtastic.core.model.WearableMessage
 import org.meshtastic.core.resources.Res
@@ -76,9 +77,6 @@ import org.meshtastic.core.ui.icon.Warning
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.PulsingDot
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
@@ -246,11 +244,6 @@ private fun ReplyActions(
     }
 }
 
-private fun formatTime(timestamp: Long): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    return sdf.format(Date(timestamp))
-}
-
 @Composable
 fun MessageBubble(msg: WearableMessage) {
     Column(
@@ -299,7 +292,7 @@ fun MessageBubble(msg: WearableMessage) {
             }
         }
         Text(
-            text = formatTime(msg.timestamp),
+            text = DateFormatter.formatTime(msg.timestamp),
             fontSize = 8.sp,
             color = COLOR_TEXT_SECONDARY,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 1.dp),
