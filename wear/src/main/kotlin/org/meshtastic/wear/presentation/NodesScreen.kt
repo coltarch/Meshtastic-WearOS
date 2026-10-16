@@ -71,6 +71,11 @@ import org.meshtastic.core.resources.ic_power
 import org.meshtastic.core.resources.ic_star
 import org.meshtastic.core.resources.wear_no_nodes
 import org.meshtastic.core.resources.wear_no_nodes_description
+import org.meshtastic.core.resources.wear_node_snr
+import org.meshtastic.core.resources.wear_nodes_empty_favorites
+import org.meshtastic.core.resources.wear_nodes_tab_all
+import org.meshtastic.core.resources.wear_nodes_tab_favorites
+import org.meshtastic.core.resources.wear_nodes_title
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus

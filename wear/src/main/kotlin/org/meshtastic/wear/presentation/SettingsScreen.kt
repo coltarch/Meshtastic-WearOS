@@ -51,10 +51,15 @@ import androidx.wear.compose.material3.Text
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.display
 import org.meshtastic.core.resources.watch_settings_title
+import org.meshtastic.core.resources.wear_alternate_colors
+import org.meshtastic.core.resources.wear_maintenance
 import org.meshtastic.core.resources.wear_phone_connection
 import org.meshtastic.core.resources.wear_phone_linked
 import org.meshtastic.core.resources.wear_phone_linked_description
+import org.meshtastic.core.resources.wear_refresh_from_phone
+import org.meshtastic.core.resources.wear_sync_badge
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus

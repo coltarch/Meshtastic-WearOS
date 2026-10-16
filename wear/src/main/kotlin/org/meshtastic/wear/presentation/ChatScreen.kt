@@ -69,7 +69,10 @@ import org.meshtastic.core.model.MessageStatus
 import org.meshtastic.core.model.WearableMessage
 import org.meshtastic.core.resources.Res
 import org.meshtastic.core.resources.message_delivery_status
+import org.meshtastic.core.resources.open_on_phone
 import org.meshtastic.core.resources.wear_no_messages
+import org.meshtastic.core.resources.wear_quick_reply
+import org.meshtastic.core.resources.wear_reply_mic_keys
 import org.meshtastic.core.ui.icon.Acknowledged
 import org.meshtastic.core.ui.icon.AddLink
 import org.meshtastic.core.ui.icon.CloudUpload
