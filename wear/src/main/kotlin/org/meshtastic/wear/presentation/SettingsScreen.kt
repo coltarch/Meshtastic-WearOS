@@ -51,10 +51,15 @@ import androidx.wear.compose.material3.Text
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.display
 import org.meshtastic.core.resources.watch_settings_title
+import org.meshtastic.core.resources.wear_alternate_colors
+import org.meshtastic.core.resources.wear_maintenance
 import org.meshtastic.core.resources.wear_phone_connection
 import org.meshtastic.core.resources.wear_phone_linked
 import org.meshtastic.core.resources.wear_phone_linked_description
+import org.meshtastic.core.resources.wear_refresh_from_phone
+import org.meshtastic.core.resources.wear_sync_badge
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
@@ -140,7 +145,7 @@ private fun PhoneConnectionSection(state: WearCompanionSyncState, onRefreshClick
 private fun DisplaySection(highContrastMode: Boolean, onHighContrastModeChange: (Boolean) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
         Text(
-            text = "Display",
+            text = stringResource(Res.string.display),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             color = COLOR_TEXT_SECONDARY,
@@ -154,7 +159,7 @@ private fun DisplaySection(highContrastMode: Boolean, onHighContrastModeChange: 
             colors = SwitchButtonDefaults.switchButtonColors(uncheckedContainerColor = COLOR_SURFACE2),
             label = {
                 Text(
-                    text = "Alternate colors",
+                    text = stringResource(Res.string.wear_alternate_colors),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = COLOR_TEXT_PRIMARY,
@@ -175,7 +180,7 @@ private fun DisplaySection(highContrastMode: Boolean, onHighContrastModeChange: 
 private fun MaintenanceSection(syncing: Boolean, onSyncClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
         Text(
-            text = "Maintenance",
+            text = stringResource(Res.string.wear_maintenance),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             color = COLOR_TEXT_SECONDARY,
@@ -194,7 +199,12 @@ private fun MaintenanceSection(syncing: Boolean, onSyncClick: () -> Unit) {
                     Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(COLOR_AMBER.copy(alpha = 0.8f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("SY", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
+                    Text(
+                        stringResource(Res.string.wear_sync_badge),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = COLOR_BG_DEEP,
+                    )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
@@ -204,7 +214,11 @@ private fun MaintenanceSection(syncing: Boolean, onSyncClick: () -> Unit) {
                         fontWeight = FontWeight.SemiBold,
                         color = COLOR_TEXT_PRIMARY,
                     )
-                    Text("Refresh from phone", fontSize = 9.sp, color = COLOR_TEXT_SECONDARY)
+                    Text(
+                        stringResource(Res.string.wear_refresh_from_phone),
+                        fontSize = 9.sp,
+                        color = COLOR_TEXT_SECONDARY,
+                    )
                 }
             }
         }

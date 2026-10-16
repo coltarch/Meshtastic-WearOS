@@ -53,9 +53,14 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.meshtastic.core.model.WearableMessage
 import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.channels
+import org.meshtastic.core.resources.wear_messages_badge_chats
+import org.meshtastic.core.resources.wear_messages_badge_dms
 import org.meshtastic.core.resources.wear_no_channels
 import org.meshtastic.core.resources.wear_no_channels_description
 import org.meshtastic.core.resources.wear_no_messages
+import org.meshtastic.core.resources.wear_private_messages
+import org.meshtastic.core.resources.wear_private_messages_description
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
@@ -93,9 +98,9 @@ fun MessagesRootScreen(
 
             item {
                 ConvTile(
-                    icon = "DMS",
-                    title = "Private Messages",
-                    subtitle = "Direct chat with nodes",
+                    icon = stringResource(Res.string.wear_messages_badge_dms),
+                    title = stringResource(Res.string.wear_private_messages),
+                    subtitle = stringResource(Res.string.wear_private_messages_description),
                     unread = 0,
                     enabled = messages.any { it.address != null },
                     onClick = onDMsClick,
@@ -104,8 +109,8 @@ fun MessagesRootScreen(
 
             item {
                 ConvTile(
-                    icon = "CHATS",
-                    title = "Channels",
+                    icon = stringResource(Res.string.wear_messages_badge_chats),
+                    title = stringResource(Res.string.channels),
                     subtitle =
                     if (channels.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                         stringResource(Res.string.wear_no_channels)
