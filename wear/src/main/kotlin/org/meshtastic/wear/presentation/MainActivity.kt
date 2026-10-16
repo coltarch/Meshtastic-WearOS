@@ -31,7 +31,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
@@ -90,14 +90,14 @@ class MainActivity : ComponentActivity() {
             val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
             // Asked once and never blocking on it: without it the watch simply posts no notifications.
-            LaunchedEffect(Unit) {
+            SideEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
 
             // The conversation a notification opened, after the host exists rather than from `onCreate`.
-            LaunchedEffect(contactKey, startupStatus) {
+            SideEffect(contactKey, startupStatus) {
                 if (contactKey != null && startupStatus != WearStartupStatus.Loading) {
                     navController.navigate("chat_view/$contactKey")
                     pendingContactKey.value = null
