@@ -18,16 +18,22 @@
 
 package org.meshtastic.wear.presentation
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -53,6 +59,7 @@ import org.meshtastic.core.resources.error
 import org.meshtastic.core.resources.retry
 import org.meshtastic.wear.di.WearStartupState
 import org.meshtastic.wear.di.WearStartupStatus
+import org.meshtastic.wear.notifications.EXTRA_CONTACT_KEY
 import org.meshtastic.wear.presentation.theme.MeshWatchTheme
 
 private const val MAIN_PAGER_ROUTE = "main_pager"
@@ -66,12 +73,36 @@ internal fun nodeDetailsRoute(nodeNum: Int): String = "node_detail/$nodeNum"
 //  Activity
 // ─────────────────────────────────────────────────────────────
 class MainActivity : ComponentActivity() {
+
+    /**
+     * A tapped notification's conversation, held until it has been navigated to: the nav host is not up in `onCreate`.
+     */
+    private val pendingContactKey = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingContactKey.value = intent?.getStringExtra(EXTRA_CONTACT_KEY)
         setContent {
             val navController = rememberSwipeDismissableNavController()
             val startupState: WearStartupState = koinInject()
             val startupStatus by startupState.status.collectAsStateWithLifecycle()
+            val contactKey by pendingContactKey
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+            // Asked once and never blocking on it: without it the watch simply posts no notifications.
+            SideEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+
+            // The conversation a notification opened, after the host exists rather than from `onCreate`.
+            SideEffect(contactKey, startupStatus) {
+                if (contactKey != null && startupStatus != WearStartupStatus.Loading) {
+                    navController.navigate("chat_view/$contactKey")
+                    pendingContactKey.value = null
+                }
+            }
 
             MeshWatchTheme {
                 AppScaffold {
@@ -105,6 +136,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        pendingContactKey.value = intent.getStringExtra(EXTRA_CONTACT_KEY)
     }
 
     private fun restartApp() {
