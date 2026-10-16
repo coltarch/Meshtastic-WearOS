@@ -75,8 +75,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
             item { SectionHeader(stringResource(Res.string.watch_settings_title)) }
 
             item { CompanionConnectionSection() }
-            item { PhoneMenuSection() }
-            item { DeviceSection() }
             item { CompanionMaintenanceSection() }
 
             item {
@@ -134,82 +132,6 @@ private fun PhoneConnectionSection(state: WearCompanionSyncState, onRefreshClick
             }
         } else {
             CompanionSyncStatus(state = state, onRetry = onRefreshClick)
-        }
-    }
-}
-
-@Composable
-private fun PhoneMenuSection() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-        Text(
-            text = "Phone Menu",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = COLOR_TEXT_SECONDARY,
-            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-        )
-
-        Button(
-            onClick = { /* TODO: Notification settings */ },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = COLOR_SURFACE2),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(COLOR_TEAL_DIM),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("NT", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "Notifications",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = COLOR_TEXT_PRIMARY,
-                    )
-                    Text("Alerts from phone", fontSize = 9.sp, color = COLOR_TEXT_SECONDARY)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DeviceSection() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-        Text(
-            text = "Device",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = COLOR_TEXT_SECONDARY,
-            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-        )
-
-        Button(
-            onClick = { /* TODO: Radio settings */ },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = COLOR_SURFACE2),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(COLOR_TEAL_DIM),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("RD", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = COLOR_BG_DEEP)
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "Radio Settings",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = COLOR_TEXT_PRIMARY,
-                    )
-                    Text("Configure radio", fontSize = 9.sp, color = COLOR_TEXT_SECONDARY)
-                }
-            }
         }
     }
 }
