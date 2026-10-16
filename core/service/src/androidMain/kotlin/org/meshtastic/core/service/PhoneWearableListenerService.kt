@@ -23,13 +23,9 @@ import co.touchlab.kermit.Logger
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
-import org.meshtastic.core.di.CoroutineDispatchers
+import org.meshtastic.core.common.di.ServiceScope
 import org.meshtastic.core.repository.WatchPrefs
 import org.meshtastic.core.repository.usecase.SendMessageUseCase
 
@@ -37,13 +33,9 @@ import org.meshtastic.core.repository.usecase.SendMessageUseCase
 class PhoneWearableListenerService : WearableListenerService() {
     private val syncService: WearableSyncService by inject()
     private val sendMessageUseCase: SendMessageUseCase by inject()
-    private val dispatchers: CoroutineDispatchers by inject()
     private val watchPrefs: WatchPrefs by inject()
+    private val serviceScope: ServiceScope by inject()
     private val failureLogger = WearableFailureLogger(Logger.withTag("PhoneWearableListenerService"))
-    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        failureLogger.log(WearableFailureLog.UnexpectedCommand, throwable)
-    }
-    private val scope by lazy { CoroutineScope(SupervisorJob() + dispatchers.io + exceptionHandler) }
     private val router = WearableIncomingActionRouter()
     private val handler by lazy {
         WearableIncomingActionHandler(
@@ -71,7 +63,7 @@ class PhoneWearableListenerService : WearableListenerService() {
             else -> {
                 Logger.d { "Handling wearable command" }
                 syncService.recordSuccessfulWatchCommunication()
-                scope.launch {
+                serviceScope.launch {
                     try {
                         handler.handle(action)
                     } catch (e: CancellationException) {
@@ -127,10 +119,5 @@ class PhoneWearableListenerService : WearableListenerService() {
         } catch (e: SecurityException) {
             failureLogger.log(WearableFailureLog.OpenNode, e)
         }
-    }
-
-    override fun onDestroy() {
-        scope.cancel()
-        super.onDestroy()
     }
 }
