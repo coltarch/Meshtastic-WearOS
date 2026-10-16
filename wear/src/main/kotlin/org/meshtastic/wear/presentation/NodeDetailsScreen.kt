@@ -103,7 +103,7 @@ internal fun NodeDetailsContent(node: WearableNode?, onOpenOnPhone: (Int) -> Uni
             state = listState,
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+            modifier = Modifier.fillMaxSize().background(COLOR_BG_DEEP),
         ) {
             item { ListHeader { Text(text = stringResource(Res.string.node_list_help_node_details)) } }
 
@@ -196,14 +196,14 @@ private fun OpenOnPhoneButton(onClick: () -> Unit) {
 @Composable
 private fun NodeDetailsHeader(node: WearableNode) {
     val statusText = stringResource(if (node.online) Res.string.online else Res.string.offline)
-    val statusColor = if (node.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val statusColor = if (node.online) COLOR_TEAL else COLOR_TEXT_SECONDARY
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier.size(48.dp).clip(CircleShape).background(COLOR_TEAL_DIM),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -211,13 +211,14 @@ private fun NodeDetailsHeader(node: WearableNode) {
                 node.shortName.ifBlank { NodeAddress.numToDefaultId(node.num).takeLast(NODE_ID_AVATAR_CHAR_COUNT) },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = COLOR_BG_DEEP,
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = node.name.ifBlank { stringResource(Res.string.unavailable) },
             style = MaterialTheme.typography.titleMedium,
+            color = COLOR_TEXT_PRIMARY,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -230,14 +231,14 @@ private fun NodeDetailsHeader(node: WearableNode) {
 private fun NodeInformationRow(icon: ImageVector, label: String, value: String) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = COLOR_SURFACE1),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = COLOR_TEAL,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -245,11 +246,12 @@ private fun NodeInformationRow(icon: ImageVector, label: String, value: String) 
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = COLOR_TEXT_SECONDARY,
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
+                    color = COLOR_TEXT_PRIMARY,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -262,20 +264,21 @@ private fun NodeInformationRow(icon: ImageVector, label: String, value: String) 
 private fun NodeUnavailableCard() {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = COLOR_SURFACE1),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Icon(
                 imageVector = MeshtasticIcons.PersonQuestion,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = COLOR_TEXT_SECONDARY,
                 modifier = Modifier.size(28.dp),
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(Res.string.node_unavailable),
                 style = MaterialTheme.typography.bodyMedium,
+                color = COLOR_TEXT_PRIMARY,
                 textAlign = TextAlign.Center,
             )
         }
