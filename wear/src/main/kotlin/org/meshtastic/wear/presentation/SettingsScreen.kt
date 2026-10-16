@@ -35,9 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,23 +50,8 @@ import androidx.wear.compose.material3.SwitchButtonDefaults
 import androidx.wear.compose.material3.Text
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
-import org.meshtastic.core.repository.WearOperatingMode
 import org.meshtastic.core.resources.Res
-import org.meshtastic.core.resources.cancel
-import org.meshtastic.core.resources.companion_mode
-import org.meshtastic.core.resources.companion_mode_description
-import org.meshtastic.core.resources.experimental_badge
-import org.meshtastic.core.resources.operating_mode
-import org.meshtastic.core.resources.standalone_radio_battery_warning
-import org.meshtastic.core.resources.standalone_radio_experimental_description
-import org.meshtastic.core.resources.standalone_radio_mode
-import org.meshtastic.core.resources.standalone_radio_phone_sync_notice
-import org.meshtastic.core.resources.standalone_radio_unsupported
 import org.meshtastic.core.resources.watch_settings_title
-import org.meshtastic.core.resources.wear_mode_change_confirm
-import org.meshtastic.core.resources.wear_mode_change_restart
-import org.meshtastic.core.resources.wear_mode_restart_action
-import org.meshtastic.core.resources.wear_mode_restart_required
 import org.meshtastic.core.resources.wear_phone_connection
 import org.meshtastic.core.resources.wear_phone_linked
 import org.meshtastic.core.resources.wear_phone_linked_description
@@ -78,22 +60,9 @@ import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
 import org.meshtastic.wear.presentation.components.SectionHeader
 
-internal const val STANDALONE_RADIO_SWITCH_TEST_TAG = "standalone_radio_switch"
-
 @Composable
-fun SettingsScreen(onRestartApp: () -> Unit, viewModel: SettingsViewModel = koinViewModel()) {
+fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
     val highContrastMode by viewModel.highContrastModeEnabled.collectAsStateWithLifecycle()
-    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
-    val confirmationMode by viewModel.confirmationMode.collectAsStateWithLifecycle()
-
-    if (confirmationMode != null) {
-        OperatingModeConfirmation(
-            mode = checkNotNull(confirmationMode),
-            onConfirm = viewModel::confirmOperatingModeChange,
-            onCancel = viewModel::cancelOperatingModeChange,
-        )
-        return
-    }
 
     val listState = rememberTransformingLazyColumnState()
 
@@ -105,21 +74,10 @@ fun SettingsScreen(onRestartApp: () -> Unit, viewModel: SettingsViewModel = koin
         ) {
             item { SectionHeader(stringResource(Res.string.watch_settings_title)) }
 
-            item {
-                OperatingModeSection(
-                    state = settingsState,
-                    standaloneSupported = viewModel.standaloneSupported,
-                    onModeRequest = viewModel::requestOperatingMode,
-                    onRestartApp = onRestartApp,
-                )
-            }
-
-            if (settingsState.activeMode == WearOperatingMode.COMPANION) {
-                item { CompanionConnectionSection() }
-                item { PhoneMenuSection() }
-                item { DeviceSection() }
-                item { CompanionMaintenanceSection() }
-            }
+            item { CompanionConnectionSection() }
+            item { PhoneMenuSection() }
+            item { DeviceSection() }
+            item { CompanionMaintenanceSection() }
 
             item {
                 DisplaySection(
@@ -129,84 +87,6 @@ fun SettingsScreen(onRestartApp: () -> Unit, viewModel: SettingsViewModel = koin
             }
 
             item { Spacer(Modifier.height(16.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun ExperimentalBadge() {
-    Text(
-        text = stringResource(Res.string.experimental_badge),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier =
-        Modifier.clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
-}
-
-@Composable
-internal fun OperatingModeSection(
-    state: WearSettingsUiState,
-    standaloneSupported: Boolean,
-    onModeRequest: (WearOperatingMode) -> Unit,
-    onRestartApp: () -> Unit,
-) {
-    val standaloneSummary = stringResource(Res.string.standalone_radio_experimental_description)
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-        Text(
-            text = stringResource(Res.string.operating_mode),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-        )
-        Text(
-            text = stringResource(Res.string.companion_mode),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp),
-        )
-        Text(
-            text = stringResource(Res.string.companion_mode_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-        )
-        SwitchButton(
-            checked = state.configuredMode == WearOperatingMode.STANDALONE_RADIO,
-            onCheckedChange = { checked ->
-                onModeRequest(if (checked) WearOperatingMode.STANDALONE_RADIO else WearOperatingMode.COMPANION)
-            },
-            enabled = standaloneSupported || state.configuredMode == WearOperatingMode.STANDALONE_RADIO,
-            modifier =
-            Modifier.fillMaxWidth().testTag(STANDALONE_RADIO_SWITCH_TEST_TAG).semantics {
-                stateDescription = standaloneSummary
-            },
-            colors = SwitchButtonDefaults.switchButtonColors(),
-            label = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = stringResource(Res.string.standalone_radio_mode), modifier = Modifier.weight(1f))
-                    ExperimentalBadge()
-                }
-            },
-            secondaryLabel = {
-                Column {
-                    Text(text = standaloneSummary)
-                    if (!standaloneSupported) Text(text = stringResource(Res.string.standalone_radio_unsupported))
-                }
-            },
-        )
-        if (state.restartRequired) {
-            Text(
-                text = stringResource(Res.string.wear_mode_restart_required),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-            Button(onClick = onRestartApp, modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(Res.string.wear_mode_restart_action))
-            }
         }
     }
 }
@@ -225,60 +105,6 @@ private fun CompanionMaintenanceSection(viewModel: CompanionConnectionViewModel 
         connectionState == WearCompanionSyncState.Loading || connectionState == WearCompanionSyncState.Retrying,
         onSyncClick = viewModel::requestSync,
     )
-}
-
-@Composable
-private fun OperatingModeConfirmation(mode: WearOperatingMode, onConfirm: () -> Unit, onCancel: () -> Unit) {
-    val listState = rememberTransformingLazyColumnState()
-    ScreenScaffold(scrollState = listState) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxSize()) {
-            item { SectionHeader(stringResource(Res.string.wear_mode_change_confirm)) }
-            item {
-                Text(
-                    text =
-                    stringResource(
-                        if (mode == WearOperatingMode.STANDALONE_RADIO) {
-                            Res.string.standalone_radio_mode
-                        } else {
-                            Res.string.companion_mode
-                        },
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-            item {
-                Text(
-                    text = stringResource(Res.string.wear_mode_change_restart),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-            if (mode == WearOperatingMode.STANDALONE_RADIO) {
-                item {
-                    Text(
-                        text = stringResource(Res.string.standalone_radio_battery_warning),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-                item {
-                    Text(
-                        text = stringResource(Res.string.standalone_radio_phone_sync_notice),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-            }
-            item {
-                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                    Text(stringResource(Res.string.wear_mode_change_confirm))
-                }
-            }
-            item {
-                Button(onClick = onCancel, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                    Text(stringResource(Res.string.cancel))
-                }
-            }
-        }
-    }
 }
 
 @Composable
