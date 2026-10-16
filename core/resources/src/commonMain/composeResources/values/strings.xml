@@ -2074,7 +2074,6 @@
     <string name="watch_connected_watch">Connected watch</string>
     <string name="watch_connection_section">Connection</string>
     <string name="watch_last_communication">Last communication</string>
-    <string name="watch_last_seen">%1$s · Last seen %2$s</string>
     <string name="watch_message_retention_description">Choose the maximum number of recent messages copied across all conversations.</string>
     <string name="watch_message_retention_label">Message retention</string>
     <string name="watch_message_retention_option">%1$d messages</string>
@@ -2109,7 +2108,6 @@
     <string name="watch_sync_now_label">Sync now</string>
     <string name="watch_sync_privacy_description">Only the categories you enable are shared with your connected Wear OS watch. Turning a category off clears that category on compatible watches and stops future updates.</string>
     <string name="watch_sync_problem">Sync problem</string>
-    <string name="watch_sync_problem_connection">The phone could not check the watch connection.</string>
     <string name="watch_sync_problem_transfer">Some data could not be sent to the watch.</string>
     <string name="watch_sync_progress">%1$s — %2$d of %3$d steps complete</string>
     <string name="watch_sync_progress_channels">Syncing channels</string>
@@ -2134,11 +2132,7 @@
     <string name="waypoint_new">New waypoint</string>
     <string name="waypoint_received">Received waypoint: %1$s</string>
     <!-- WEAR -->
-    <string name="wear_mode_change_confirm">Change mode</string>
     <string name="wear_mode_change_continue">Continue</string>
-    <string name="wear_mode_change_restart">The new mode takes effect after the watch app restarts.</string>
-    <string name="wear_mode_restart_action">Restart app</string>
-    <string name="wear_mode_restart_required">Restart required to apply the mode change.</string>
     <string name="wear_no_channels">No channels available</string>
     <string name="wear_no_channels_description">Channels appear after the phone completes synchronization.</string>
     <string name="wear_no_messages">No messages yet</string>
