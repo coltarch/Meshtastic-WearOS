@@ -34,7 +34,7 @@ class QuickReplySelectorTest {
     private fun select(text: String, limit: Int = 3) = QuickReplySelector.select(replies, listOf(text), limit)
 
     @Test
-    fun `a question offers the affirmative, the negative and a short assent`() {
+    fun `a question offers one of each answer kind`() {
         val selected = select("Are you at camp?")
 
         assertEquals(listOf("Yes", "No", "Sure"), selected)
@@ -119,11 +119,7 @@ class QuickReplySelectorTest {
 
     @Test
     fun `a short word only matches a whole word`() {
-        val selected =
-            QuickReplySelector.select(
-                listOf("Nobody knows", "This is fine", "No"),
-                listOf("are you free?"),
-            )
+        val selected = QuickReplySelector.select(listOf("Nobody knows", "This is fine", "No"), listOf("are you free?"))
 
         // "Nobody" must not be read as "no": the real "No" answers the question, and the phrases that merely contain
         // those letters keep their synced order behind it.

@@ -100,7 +100,8 @@ object QuickReplySelector {
                 Intent.Thanks -> THANKS_ANSWERS
                 Intent.Greeting -> GREETINGS
                 Intent.Question -> AFFIRMATIVE + NEGATIVE + ASSENT
-                Intent.None, null -> emptyList()
+                Intent.None -> emptyList()
+                null -> emptyList()
             }
 
         val matched = candidates.filter { reply -> answers.any { mention -> mentions(reply, mention) } }
@@ -109,14 +110,13 @@ object QuickReplySelector {
         return (matched + rest).take(limit)
     }
 
-    private fun intentOf(text: String): Intent =
-        when {
-            ARRIVAL_ASKS.any { mentions(text, it) } -> Intent.Arrival
-            THANKS_ASKS.any { mentions(text, it) } -> Intent.Thanks
-            GREETINGS.any { mentions(text, it) } -> Intent.Greeting
-            text.contains('?') || QUESTION_ASKS.any { mentions(text, it) } -> Intent.Question
-            else -> Intent.None
-        }
+    private fun intentOf(text: String): Intent = when {
+        ARRIVAL_ASKS.any { mentions(text, it) } -> Intent.Arrival
+        THANKS_ASKS.any { mentions(text, it) } -> Intent.Thanks
+        GREETINGS.any { mentions(text, it) } -> Intent.Greeting
+        text.contains('?') || QUESTION_ASKS.any { mentions(text, it) } -> Intent.Question
+        else -> Intent.None
+    }
 
     /**
      * Whether [text] uses [keyword].
@@ -124,13 +124,11 @@ object QuickReplySelector {
      * Phrases and contractions are matched as substrings, an emoji is matched literally, and single words are matched
      * against whole words only — so "no" does not fire on "nobody" and "hi" does not fire on "this".
      */
-    private fun mentions(text: String, keyword: String): Boolean =
-        when {
-            keyword.contains(' ') || keyword.contains('\'') -> text.lowercase().contains(keyword)
-            keyword.none(Char::isLetter) -> text.contains(keyword)
-            else -> wordsOf(text).contains(keyword)
-        }
+    private fun mentions(text: String, keyword: String): Boolean = when {
+        keyword.contains(' ') || keyword.contains('\'') -> text.lowercase().contains(keyword)
+        keyword.none(Char::isLetter) -> text.contains(keyword)
+        else -> wordsOf(text).contains(keyword)
+    }
 
-    private fun wordsOf(text: String): List<String> =
-        text.lowercase().split(SEPARATORS).filter(String::isNotEmpty)
+    private fun wordsOf(text: String): List<String> = text.lowercase().split(SEPARATORS).filter(String::isNotEmpty)
 }
