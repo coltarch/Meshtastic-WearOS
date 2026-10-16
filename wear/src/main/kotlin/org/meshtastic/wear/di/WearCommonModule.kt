@@ -46,6 +46,5 @@ class WearCommonModule {
     @Single fun provideCompanionSyncStateHolder(): WearCompanionSyncStateHolder = WearCompanionSyncStateHolder()
 
     @KoinViewModel
-    fun provideSettingsViewModel(watchPrefs: WatchPrefs): SettingsViewModel =
-        SettingsViewModel(watchPrefs)
+    fun provideSettingsViewModel(watchPrefs: WatchPrefs): SettingsViewModel = SettingsViewModel(watchPrefs)
 }

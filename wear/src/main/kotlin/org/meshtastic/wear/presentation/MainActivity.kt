@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
 
             MeshWatchTheme {
                 AppScaffold {
-                    when (val status = startupStatus) {
+                    when (startupStatus) {
                         WearStartupStatus.Loading -> WearStartupLoading()
 
                         WearStartupStatus.Failed -> WearStartupFailure(onRetry = ::restartApp)
