@@ -66,7 +66,6 @@ class CoroutineScopeConstructionTest {
             "core/service/androidMain/BootCompleteReceiver.kt",
             "core/service/androidMain/ConversationActionService.kt",
             "core/service/androidMain/MeshService.kt",
-            "core/service/androidMain/PhoneWearableListenerService.kt",
             "core/service/androidMain/WearableSyncService.kt",
             "core/service/commonMain/CoreServiceModule.kt",
             "core/service/commonMain/MeshServiceOrchestrator.kt",
