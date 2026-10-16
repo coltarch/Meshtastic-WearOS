@@ -58,6 +58,7 @@
         <activity
             android:name="org.meshtastic.wear.presentation.MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>
@@ -73,6 +74,10 @@
             android:noHistory="true"
             android:process=":restart"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <service
+            android:name="org.meshtastic.wear.notifications.WatchReplyService"
+            android:exported="false" />
 
         <service
             android:name="org.meshtastic.core.service.MeshService"

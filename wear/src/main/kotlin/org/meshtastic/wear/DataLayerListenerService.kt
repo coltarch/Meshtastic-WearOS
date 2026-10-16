@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.koin.android.ext.android.inject
 import org.meshtastic.core.common.util.nowMillis
+import org.meshtastic.core.common.wear.NewMessageDetector
 import org.meshtastic.core.di.CoroutineDispatchers
 import org.meshtastic.core.model.WatchSyncCategory
 import org.meshtastic.core.model.WatchSyncPaths
@@ -43,6 +44,7 @@ import org.meshtastic.core.repository.WearOperatingMode
 import org.meshtastic.wear.data.WearCompanionSyncStateHolder
 import org.meshtastic.wear.di.WearStartupState
 import org.meshtastic.wear.di.WearStartupStatus
+import org.meshtastic.wear.notifications.WatchNotificationManager
 import org.meshtastic.wear.presentation.model.WearableChannelRepository
 import org.meshtastic.wear.presentation.model.WearableMessageRepository
 import org.meshtastic.wear.presentation.model.WearableNodeRepository
@@ -61,6 +63,12 @@ class DataLayerListenerService : WearableListenerService() {
     private val watchPrefs: WatchPrefs by inject()
     private val startupState: WearStartupState by inject()
     private val dispatchers: CoroutineDispatchers by inject()
+
+    /** Ids already offered to the notification, so a snapshot only announces what is genuinely new. */
+    private val seenMessageIds = mutableSetOf<Long>()
+
+    /** The first snapshot of a run is history, not news: it fills [seenMessageIds] without announcing anything. */
+    private var messagesPrimed = false
     private val json = Json { ignoreUnknownKeys = true }
     private val serviceJob = SupervisorJob()
     private val scope by lazy { CoroutineScope(serviceJob + dispatchers.default) }
@@ -181,10 +189,37 @@ class DataLayerListenerService : WearableListenerService() {
         try {
             val messages = json.decodeFromString<List<WearableMessage>>(jsonStr)
             messageRepository.updateMessages(messages)
+            notifyNewDirectMessages(messages)
         } catch (_: Exception) {
             syncStateHolder.syncFailed()
             Logger.w { "Unable to decode synchronized messages" }
         }
+    }
+
+    /** Direct messages only — `address != null`, the rule the message list already uses — one notification per chat. */
+    private fun notifyNewDirectMessages(messages: List<WearableMessage>) {
+        val refs = messages.map { NewMessageDetector.MessageRef(it.uuid, it.contactKey, it.isMe) }
+        val fresh = NewMessageDetector.newIncoming(seenMessageIds, refs).map { it.uuid }.toSet()
+        seenMessageIds.addAll(refs.map { it.uuid })
+        if (!messagesPrimed) {
+            messagesPrimed = true
+            return
+        }
+
+        val notifications = WatchNotificationManager(this)
+        messages
+            .filter { it.uuid in fresh && it.address != null }
+            .groupBy { it.contactKey }
+            .forEach { (contactKey, group) ->
+                val last = group.last()
+                notifications.post(
+                    contactKey = contactKey,
+                    senderName = last.senderName,
+                    text = group.joinToString("\n") { message -> message.text },
+                    timestamp = last.timestamp,
+                    quickReplies = quickReplyRepository.replies.value,
+                )
+            }
     }
 
     private fun handleChannelsJson(jsonStr: String) {
