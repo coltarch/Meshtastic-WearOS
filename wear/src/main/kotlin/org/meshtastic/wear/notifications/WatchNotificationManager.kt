@@ -88,21 +88,19 @@ class WatchNotificationManager(private val context: Context) {
 
     private fun person(name: String): Person = Person.Builder().setName(name).build()
 
-    private fun openIntent(contactKey: String): PendingIntent =
-        PendingIntent.getActivity(
-            context,
-            contactKey.hashCode(),
-            Intent(context, MainActivity::class.java).putExtra(EXTRA_CONTACT_KEY, contactKey),
-            PENDING_INTENT_FLAGS,
-        )
+    private fun openIntent(contactKey: String): PendingIntent = PendingIntent.getActivity(
+        context,
+        contactKey.hashCode(),
+        Intent(context, MainActivity::class.java).putExtra(EXTRA_CONTACT_KEY, contactKey),
+        PENDING_INTENT_FLAGS,
+    )
 
-    private fun replyIntent(contactKey: String): PendingIntent =
-        PendingIntent.getService(
-            context,
-            contactKey.hashCode(),
-            Intent(context, WatchReplyService::class.java).putExtra(EXTRA_CONTACT_KEY, contactKey),
-            PENDING_INTENT_FLAGS,
-        )
+    private fun replyIntent(contactKey: String): PendingIntent = PendingIntent.getService(
+        context,
+        contactKey.hashCode(),
+        Intent(context, WatchReplyService::class.java).putExtra(EXTRA_CONTACT_KEY, contactKey),
+        PENDING_INTENT_FLAGS,
+    )
 
     private companion object {
         const val CHANNEL_ID = "watch_messages"
