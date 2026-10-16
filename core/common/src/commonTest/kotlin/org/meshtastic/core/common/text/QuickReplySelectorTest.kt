@@ -24,8 +24,8 @@ import kotlin.test.assertTrue
  * Locks down which of the user's own phrases the chips offer for a given message.
  *
  * Two properties matter besides the ordering: the selector never returns text the user did not write, and a message
- * that matches no intent leaves the synced order alone. The watch renders whatever list it is handed, so a mistake
- * here shows up on the wrist rather than in the build.
+ * that matches no intent leaves the synced order alone. The watch renders whatever list it is handed, so a mistake here
+ * shows up on the wrist rather than in the build.
  */
 class QuickReplySelectorTest {
 
