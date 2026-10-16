@@ -148,23 +148,19 @@ class PlayServicesWearDataLayerClient(
     }
 
     override suspend fun sendCommand(path: String, payload: ByteArray?): Boolean = try {
+        // Deliver-only: a dropped command is not a disconnect, so leave the sync state to synchronize().
         val nodes = withTimeoutOrNull(CONNECTION_TIMEOUT) { nodeClient.connectedNodes.await() }.orEmpty()
         if (nodes.isEmpty()) {
-            syncStateHolder.phoneUnavailable()
             false
         } else {
-            val delivered =
-                withTimeoutOrNull(COMMAND_TIMEOUT) {
-                    nodes.forEach { node -> messageClient.sendMessage(node.id, path, payload).await() }
-                    true
-                } ?: false
-            if (!delivered) syncStateHolder.syncFailed()
-            delivered
+            withTimeoutOrNull(COMMAND_TIMEOUT) {
+                nodes.forEach { node -> messageClient.sendMessage(node.id, path, payload).await() }
+                true
+            } ?: false
         }
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (_: Exception) {
-        syncStateHolder.syncFailed()
         false
     }
 
