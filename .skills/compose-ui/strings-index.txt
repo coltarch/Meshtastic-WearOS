@@ -2063,6 +2063,10 @@ waypoint_edit
 waypoint_new
 waypoint_received
 ### WEAR ###
+wear_alternate_colors
+wear_maintenance
+wear_messages_badge_chats
+wear_messages_badge_dms
 wear_mode_change_continue
 wear_no_channels
 wear_no_channels_description
@@ -2070,11 +2074,22 @@ wear_no_messages
 wear_no_nodes
 wear_no_nodes_description
 wear_node_card_content_description
+wear_node_snr
+wear_nodes_empty_favorites
+wear_nodes_tab_all
+wear_nodes_tab_favorites
+wear_nodes_title
 wear_phone_connection
 wear_phone_linked
 wear_phone_linked_description
 wear_phone_not_linked
 wear_phone_not_linked_description
+wear_private_messages
+wear_private_messages_description
+wear_quick_reply
+wear_refresh_from_phone
+wear_reply_mic_keys
+wear_sync_badge
 wear_sync_failed
 wear_sync_failed_description
 wear_sync_in_progress

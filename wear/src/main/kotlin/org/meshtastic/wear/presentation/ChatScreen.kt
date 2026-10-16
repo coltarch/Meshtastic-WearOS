@@ -196,7 +196,7 @@ private fun ChatDivider() {
 private fun QuickReplySection(replies: List<String>, onReply: (String) -> Unit) {
     Column {
         Text(
-            text = "QUICK REPLY",
+            text = stringResource(Res.string.wear_quick_reply),
             fontSize = 9.sp,
             letterSpacing = 1.5.sp,
             color = COLOR_TEXT_SECONDARY,
@@ -241,11 +241,16 @@ private fun ReplyActions(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             colors = ButtonDefaults.buttonColors(containerColor = COLOR_TEAL_DIM),
         ) {
-            Text(text = "Reply (Mic / Keys)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                text = stringResource(Res.string.wear_reply_mic_keys),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
         }
 
         FilledTonalButton(onClick = onOpenOnPhone, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-            Text("Open on Phone", fontSize = 11.sp)
+            Text(stringResource(Res.string.open_on_phone), fontSize = 11.sp)
         }
     }
 }

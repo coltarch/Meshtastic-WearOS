@@ -93,9 +93,9 @@ fun MessagesRootScreen(
 
             item {
                 ConvTile(
-                    icon = "DMS",
-                    title = "Private Messages",
-                    subtitle = "Direct chat with nodes",
+                    icon = stringResource(Res.string.wear_messages_badge_dms),
+                    title = stringResource(Res.string.wear_private_messages),
+                    subtitle = stringResource(Res.string.wear_private_messages_description),
                     unread = 0,
                     enabled = messages.any { it.address != null },
                     onClick = onDMsClick,
@@ -104,8 +104,8 @@ fun MessagesRootScreen(
 
             item {
                 ConvTile(
-                    icon = "CHATS",
-                    title = "Channels",
+                    icon = stringResource(Res.string.wear_messages_badge_chats),
+                    title = stringResource(Res.string.channels),
                     subtitle =
                     if (channels.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                         stringResource(Res.string.wear_no_channels)
