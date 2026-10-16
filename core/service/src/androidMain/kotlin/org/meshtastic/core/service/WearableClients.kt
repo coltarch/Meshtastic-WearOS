@@ -24,9 +24,16 @@ import com.google.android.gms.wearable.Wearable
 import org.koin.core.annotation.Single
 
 /** Injectable seam for the Wearable Data Layer clients so synchronization can be tested without Play Services. */
-@Single
-class WearableClients(context: Context) {
-    val dataClient: DataClient = Wearable.getDataClient(context.applicationContext)
-    val messageClient: MessageClient = Wearable.getMessageClient(context.applicationContext)
-    val capabilityClient: CapabilityClient = Wearable.getCapabilityClient(context.applicationContext)
+interface WearableClients {
+    val dataClient: DataClient
+    val messageClient: MessageClient
+    val capabilityClient: CapabilityClient
+}
+
+/** Production implementation backed by the Google Play Services Wearable clients. */
+@Single(binds = [WearableClients::class])
+class GmsWearableClients(context: Context) : WearableClients {
+    override val dataClient: DataClient = Wearable.getDataClient(context.applicationContext)
+    override val messageClient: MessageClient = Wearable.getMessageClient(context.applicationContext)
+    override val capabilityClient: CapabilityClient = Wearable.getCapabilityClient(context.applicationContext)
 }
