@@ -189,37 +189,34 @@ class DataLayerListenerService : WearableListenerService() {
         try {
             val messages = json.decodeFromString<List<WearableMessage>>(jsonStr)
             messageRepository.updateMessages(messages)
-            notifyNewDirectMessages(messages)
+
+            // Direct messages only — `address != null`, the rule the message list already uses — one notification per
+            // chat. The first snapshot after a start primes the seen set instead of announcing the whole history.
+            val refs = messages.map { NewMessageDetector.MessageRef(it.uuid, it.contactKey, it.isMe) }
+            val fresh = NewMessageDetector.newIncoming(seenMessageIds, refs).map { it.uuid }.toSet()
+            seenMessageIds.addAll(refs.map { it.uuid })
+            if (!messagesPrimed) {
+                messagesPrimed = true
+            } else {
+                val notifications = WatchNotificationManager(this)
+                messages
+                    .filter { it.uuid in fresh && it.address != null }
+                    .groupBy { it.contactKey }
+                    .forEach { (contactKey, group) ->
+                        val last = group.last()
+                        notifications.post(
+                            contactKey = contactKey,
+                            senderName = last.senderName,
+                            text = group.joinToString("\n") { message -> message.text },
+                            timestamp = last.timestamp,
+                            quickReplies = quickReplyRepository.replies.value.orEmpty(),
+                        )
+                    }
+            }
         } catch (_: Exception) {
             syncStateHolder.syncFailed()
             Logger.w { "Unable to decode synchronized messages" }
         }
-    }
-
-    /** Direct messages only — `address != null`, the rule the message list already uses — one notification per chat. */
-    private fun notifyNewDirectMessages(messages: List<WearableMessage>) {
-        val refs = messages.map { NewMessageDetector.MessageRef(it.uuid, it.contactKey, it.isMe) }
-        val fresh = NewMessageDetector.newIncoming(seenMessageIds, refs).map { it.uuid }.toSet()
-        seenMessageIds.addAll(refs.map { it.uuid })
-        if (!messagesPrimed) {
-            messagesPrimed = true
-            return
-        }
-
-        val notifications = WatchNotificationManager(this)
-        messages
-            .filter { it.uuid in fresh && it.address != null }
-            .groupBy { it.contactKey }
-            .forEach { (contactKey, group) ->
-                val last = group.last()
-                notifications.post(
-                    contactKey = contactKey,
-                    senderName = last.senderName,
-                    text = group.joinToString("\n") { message -> message.text },
-                    timestamp = last.timestamp,
-                    quickReplies = quickReplyRepository.replies.value,
-                )
-            }
     }
 
     private fun handleChannelsJson(jsonStr: String) {

@@ -31,6 +31,7 @@ object NewMessageDetector {
     data class MessageRef(val uuid: Long, val contactKey: String, val isMe: Boolean)
 
     /** The [current] messages that are neither in [seen] nor the user's own, in the order they arrived. */
-    fun newIncoming(seen: Set<Long>, current: List<MessageRef>): List<MessageRef> =
-        current.filter { ref -> !ref.isMe && ref.uuid !in seen }
+    fun newIncoming(seen: Set<Long>, current: List<MessageRef>): List<MessageRef> = current.filter { ref ->
+        !ref.isMe && ref.uuid !in seen
+    }
 }

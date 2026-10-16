@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
             val startupState: WearStartupState = koinInject()
             val startupStatus by startupState.status.collectAsStateWithLifecycle()
             val contactKey by pendingContactKey
-            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
             // Asked once and never blocking on it: without it the watch simply posts no notifications.
             LaunchedEffect(Unit) {
