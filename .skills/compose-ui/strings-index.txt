@@ -2008,7 +2008,6 @@ warning
 watch_connected_watch
 watch_connection_section
 watch_last_communication
-watch_last_seen
 watch_message_retention_description
 watch_message_retention_label
 watch_message_retention_option
@@ -2040,7 +2039,6 @@ watch_sync_now_description
 watch_sync_now_label
 watch_sync_privacy_description
 watch_sync_problem
-watch_sync_problem_connection
 watch_sync_problem_transfer
 watch_sync_progress
 watch_sync_progress_channels
@@ -2065,11 +2063,7 @@ waypoint_edit
 waypoint_new
 waypoint_received
 ### WEAR ###
-wear_mode_change_confirm
 wear_mode_change_continue
-wear_mode_change_restart
-wear_mode_restart_action
-wear_mode_restart_required
 wear_no_channels
 wear_no_channels_description
 wear_no_messages
