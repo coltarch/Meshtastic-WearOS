@@ -69,7 +69,7 @@ class NodeDetailsScreenTest {
         var selectedNodeNum: Int? = null
         setContent { MaterialTheme { NodeCard(node = node, onNodeSelect = { selectedNodeNum = it }) } }
 
-        onNodeWithContentDescription(getString(Res.string.wear_node_card_content_description, node.name)).performClick()
+        onNodeWithText(node.name).performClick()
 
         runOnIdle { assertEquals(node.num, selectedNodeNum) }
     }
@@ -88,12 +88,10 @@ class NodeDetailsScreenTest {
             }
         }
 
-        onNodeWithContentDescription(getString(Res.string.wear_node_card_content_description, first.name))
-            .performClick()
+        onNodeWithText(first.name).performClick()
         runOnIdle { assertEquals(first.num, selectedNodeNum) }
 
-        onNodeWithContentDescription(getString(Res.string.wear_node_card_content_description, second.name))
-            .performClick()
+        onNodeWithText(second.name).performClick()
         runOnIdle { assertEquals(second.num, selectedNodeNum) }
     }
 
@@ -118,8 +116,7 @@ class NodeDetailsScreenTest {
             }
         }
 
-        onNodeWithContentDescription(getString(Res.string.wear_node_card_content_description, selected.name))
-            .performClick()
+        onNodeWithText(selected.name).performClick()
         onNodeWithText(selected.name).assertIsDisplayed()
         onNodeWithText("!000000ca").assertIsDisplayed()
     }
@@ -273,13 +270,23 @@ class NodeDetailsScreenTest {
             }
         }
 
-        val cardDescription = getString(Res.string.wear_node_card_content_description, node.name)
-        onNodeWithContentDescription(cardDescription).performClick()
+        onNodeWithText(node.name).performClick()
         onNodeWithText(node.name).assertIsDisplayed()
 
         onRoot().performTouchInput { swipeRight() }
 
-        onNodeWithContentDescription(cardDescription).assertIsDisplayed()
+        onNodeWithText(node.name).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a node card does not hide its status behind a content description`() = runComposeUiTest {
+        val node = testNode(num = 101, name = "Alpha", battery = 82)
+        setContent { MaterialTheme { NodeCard(node = node, onNodeSelect = {}) } }
+
+        onNodeWithText(node.name).assertIsDisplayed()
+        onNodeWithText("82%").assertIsDisplayed()
+        onNodeWithContentDescription(getString(Res.string.wear_node_card_content_description, node.name))
+            .assertDoesNotExist()
     }
 }
 

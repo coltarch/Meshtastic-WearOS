@@ -47,7 +47,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -72,7 +71,6 @@ import org.meshtastic.core.resources.ic_power
 import org.meshtastic.core.resources.ic_star
 import org.meshtastic.core.resources.wear_no_nodes
 import org.meshtastic.core.resources.wear_no_nodes_description
-import org.meshtastic.core.resources.wear_node_card_content_description
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
@@ -198,15 +196,10 @@ private fun EmptyFavourites() {
 @Composable
 fun NodeCard(node: WearableNode, onNodeSelect: (Int) -> Unit) {
     val onlineColor = if (node.online) COLOR_NEON_GREEN else COLOR_OFFLINE_GRAY
-    val nodeDescription = stringResource(Res.string.wear_node_card_content_description, node.name)
 
     Card(
         onClick = { onNodeSelect(node.num) },
-        modifier =
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp).semantics {
-            contentDescription = nodeDescription
-            role = Role.Button
-        },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp).semantics { role = Role.Button },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = COLOR_SURFACE1),
         contentPadding = PaddingValues(0.dp),
