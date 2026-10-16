@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -205,13 +207,14 @@ private fun QuickReplySection(replies: List<String>, onReply: (String) -> Unit) 
                 Box(
                     modifier =
                     Modifier.weight(1f)
+                        .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(COLOR_SURFACE2)
-                        .clickable { onReply(qr) }
+                        .clickable(role = Role.Button) { onReply(qr) }
                         .padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(qr, fontSize = 10.sp, color = COLOR_TEAL, fontWeight = FontWeight.Medium)
+                    Text(qr, fontSize = 11.sp, color = COLOR_TEAL, fontWeight = FontWeight.Medium)
                 }
             }
         }
