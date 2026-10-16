@@ -19,14 +19,12 @@
 
 package org.meshtastic.core.service
 
-import android.content.Context
 import android.net.Uri
 import co.touchlab.kermit.Logger
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.PutDataRequest
-import com.google.android.gms.wearable.Wearable
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -87,7 +85,7 @@ import org.meshtastic.core.model.Channel as MeshChannel
 @Single
 @Suppress("TooManyFunctions", "LongParameterList", "SpreadOperator")
 class WearableSyncService(
-    context: Context,
+    clients: WearableClients,
     private val watchPrefs: WatchPrefs,
     private val nodeRepository: NodeRepository,
     private val packetRepository: PacketRepository,
@@ -103,9 +101,9 @@ class WearableSyncService(
         failureLogger.log(WearableFailureLog.UnexpectedSynchronization, throwable)
     }
     private val scope = CoroutineScope(serviceJob + dispatchers.io + exceptionHandler)
-    private val dataClient = Wearable.getDataClient(context.applicationContext)
-    private val messageClient = Wearable.getMessageClient(context.applicationContext)
-    private val capabilityClient = Wearable.getCapabilityClient(context.applicationContext)
+    private val dataClient = clients.dataClient
+    private val messageClient = clients.messageClient
+    private val capabilityClient = clients.capabilityClient
     private val json = Json { ignoreUnknownKeys = true }
     private val started = atomic(false)
     private val stopped = atomic(false)
@@ -235,9 +233,17 @@ class WearableSyncService(
     }
 
     @Suppress("ReturnCount")
-    private suspend fun performSynchronization(targetNodeId: String?, reportDisconnectedAsError: Boolean) {
+    internal suspend fun performSynchronization(targetNodeId: String?, reportDisconnectedAsError: Boolean) {
         if (!watchPrefs.watchConnectivityEnabled.value) {
             watchSyncStateHolder.disconnected()
+            return
+        }
+
+        val preferences = watchPrefs.syncPreferences.value
+        if (!preferences.hasEnabledCategory) {
+            // Nothing is enabled, so there is nothing to sync — but a watch that asked for the sync
+            // still needs a terminal answer instead of a timeout.
+            targetNodeId?.let { sendSyncStatus(WatchSyncPaths.SYNC_FAILED, listOf(it)) }
             return
         }
 
@@ -262,7 +268,6 @@ class WearableSyncService(
         watchSyncStateHolder.connectionVerified(targetNodes.map { it.displayName })
         val targetNodeIds = targetNodes.map { it.id }
 
-        val preferences = watchPrefs.syncPreferences.value
         val syncPlan = preferences.toSyncPlan()
         val totalStages = syncPlan.totalStages
 
