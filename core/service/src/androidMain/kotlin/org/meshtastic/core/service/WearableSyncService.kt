@@ -159,7 +159,11 @@ class WearableSyncService(
             combine(watchPrefs.watchConnectivityEnabled, watchPrefs.syncPreferences, ::Pair)
                 .distinctUntilChanged()
                 .collectLatest { (connectivityEnabled, _) ->
-                    if (connectivityEnabled) repositoryInvalidations.trySend(Unit)
+                    if (connectivityEnabled) {
+                        repositoryInvalidations.trySend(Unit)
+                    } else {
+                        clearWatchDataOnDisconnect()
+                    }
                 }
         }
 
@@ -431,6 +435,25 @@ class WearableSyncService(
             temperature = node?.environmentMetrics?.temperature,
             relativeHumidity = node?.environmentMetrics?.relative_humidity,
         )
+    }
+
+    /** Clears every category on the reachable watch and ends the sync when connectivity is turned off. */
+    private suspend fun clearWatchDataOnDisconnect() {
+        syncMutex.withLock {
+            val reachableNodes =
+                capabilityClient
+                    .findReachableWatchNodes(null, retryWhileSearching = false)
+                    .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
+                    .getOrNull()
+            val targetNodeIds = reachableNodes?.map { it.id }.orEmpty()
+            if (targetNodeIds.isEmpty()) {
+                watchSyncStateHolder.disconnected()
+            } else {
+                clearDisabledCategories(WatchSyncCategory.entries.toList(), targetNodeIds)
+                sendSyncStatus(WatchSyncPaths.SYNC_FAILED, targetNodeIds)
+                watchSyncStateHolder.disconnected()
+            }
+        }
     }
 
     private suspend fun clearDisabledCategories(
