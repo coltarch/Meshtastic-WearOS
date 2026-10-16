@@ -94,8 +94,6 @@ object QuickReplySelector {
         if (limit <= 0) return emptyList()
 
         val candidates = replies.filter(String::isNotBlank)
-        if (candidates.isEmpty()) return emptyList()
-
         val answers =
             when (recentTexts.firstOrNull()?.let(::intentOf)) {
                 Intent.Arrival -> ARRIVAL_ANSWERS
