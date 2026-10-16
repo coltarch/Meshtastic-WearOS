@@ -23,6 +23,43 @@ future-proofing.
 
 ---
 
+## 0. Status, 2026-10-16
+
+Where each entry stands after the work that followed this audit. The findings below are left as written — this
+section records their state, so nobody re-fixes something that is done and nobody chases something that is
+deliberately parked.
+
+**Closed**
+
+- `E1`–`E3` — the missing test import, the entry point missing from the unsupported-device guard, and the startup
+  tests reaching Koin.
+- `E4`, `E5`, `E6`, `E7` — spotless, the detekt findings, the two flagged upstream-shaped functions (resolved with
+  reasoned `@Suppress` rather than a baseline entry), and the wear `google-services.json`.
+- `C1` — the five `CoroutineScope(` sites are allowlisted.
+- `C2` — every phone-side Data Layer await is bounded: 8 sites through a shared `awaitOrThrow`, no bare `.await()`
+  left in `WearableSyncService`.
+- `C5` / `D1` (`P1`) — `WearableRadioStatus` no longer carries a position, and nothing on the watch read it.
+- `B11` — `ForegroundStartPolicy.foregroundServiceType()` takes `isWatch` and never claims the location type on a
+  watch.
+
+**Parked with standalone mode** — standalone is unreachable as of PR #8: `selectWearStartupMode()` returns
+`COMPANION` unconditionally and the mode control is gone from Settings. Parked, not fixed: `B1`, `B2`, `B3`, `B4`,
+`B5`, `B10`, `D7`.
+
+When the mode comes back, **fix `B1` and `B2` first**, and add a `verify()` over the standalone module set to the
+wear `KoinVerificationTest`. Nothing verifies that graph today — its `HttpClient` and `WorkManager` assertions are
+about them being *absent* in companion mode — which is why both of those defects passed CI. `A12` is moot while the
+mode switch is gone.
+
+**Partly addressed** — `C6` / `D2`: the payload no longer carries a position, but the watch still stores the
+radio-status category and reads none of it. **Needs a re-read against current `main`** — `C4` (one failure path now
+answers the requesting node; the empty-target path may not) and `C11` (the status sends now use `WatchSyncPaths`,
+so the three-sources-of-truth claim may be narrower than written).
+
+**Open** — the remaining entries. The next batch is the companion-sync group: `A1`, `C3`, `C4`, `C7`, `C8`.
+
+---
+
 ## 1. Summary
 
 | # | Area | Findings | Highest severity present |
