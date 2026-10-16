@@ -236,6 +236,7 @@ class WearableSyncService(
     internal suspend fun performSynchronization(targetNodeId: String?, reportDisconnectedAsError: Boolean) {
         if (!watchPrefs.watchConnectivityEnabled.value) {
             watchSyncStateHolder.disconnected()
+            targetNodeId?.let { sendSyncStatus(WatchSyncPaths.SYNC_FAILED, listOf(it)) }
             return
         }
 
@@ -248,20 +249,23 @@ class WearableSyncService(
         }
 
         watchSyncStateHolder.checkingConnection()
-        val targetNodes =
+        val reachableNodes =
             capabilityClient
                 .findReachableWatchNodes(targetNodeId, retryWhileSearching = reportDisconnectedAsError)
-                .getOrElse {
-                    failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it)
-                    watchSyncStateHolder.syncFailed(WatchConnectionError.WearServicesUnavailable)
-                    return
-                }
+                .onFailure { failureLogger.log(WearableFailureLog.ConnectedNodeQuery, it) }
+        if (reachableNodes.isFailure) {
+            watchSyncStateHolder.syncFailed(WatchConnectionError.WearServicesUnavailable)
+            targetNodeId?.let { sendSyncStatus(WatchSyncPaths.SYNC_FAILED, listOf(it)) }
+            return
+        }
+        val targetNodes = reachableNodes.getOrThrow()
         if (targetNodes.isEmpty()) {
             if (reportDisconnectedAsError) {
                 watchSyncStateHolder.syncFailed(WatchConnectionError.NotConnected)
             } else {
                 watchSyncStateHolder.disconnected()
             }
+            targetNodeId?.let { sendSyncStatus(WatchSyncPaths.SYNC_FAILED, listOf(it)) }
             return
         }
 
