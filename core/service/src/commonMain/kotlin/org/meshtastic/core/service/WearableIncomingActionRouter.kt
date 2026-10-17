@@ -52,15 +52,15 @@ internal class WearableIncomingActionRouter(private val json: Json = Json { igno
             reply.address?.let { address ->
                 val normalizedAddress = NodeAddress.fromString(address).toIdString()
                 if (normalizedAddress == NodeAddress.ID_BROADCAST) {
-                    ContactKey.broadcast(reply.channelIndex).value
+                    reply.channelIndex.toBroadcastContactKey()
                 } else if (reply.channelIndex == NodeAddress.PKC_CHANNEL_INDEX) {
                     NodeAddress.ById(normalizedAddress).toContactKey(reply.channelIndex).value
                 } else {
                     normalizedAddress
                 }
-            } ?: ContactKey.broadcast(reply.channelIndex).value
+            } ?: reply.channelIndex.toBroadcastContactKey()
 
-        if (reply.text.isBlank() || !contactKey.isSupportedContactKey()) {
+        if (contactKey == null || reply.text.isBlank() || !contactKey.isSupportedContactKey()) {
             WearableIncomingAction.Malformed
         } else {
             WearableIncomingAction.SendMessage(text = reply.text, contactKey = contactKey)
@@ -68,15 +68,28 @@ internal class WearableIncomingActionRouter(private val json: Json = Json { igno
     }
         .getOrElse { WearableIncomingAction.Malformed }
 
-    private fun parseConversation(data: ByteArray): WearableIncomingAction =
-        safeCatching { data.decodeToString(throwOnInvalidSequence = true) }
-            .map { contactKey -> contactKey.takeIf { it.isSupportedContactKey() } }
-            .fold(
-                onSuccess = { contactKey ->
-                    contactKey?.let(WearableIncomingAction::OpenConversation) ?: WearableIncomingAction.Malformed
-                },
-                onFailure = { WearableIncomingAction.Malformed },
-            )
+    /**
+     * The broadcast key for this channel index, or `null` when no broadcast key can carry it.
+     *
+     * A broadcast key stores the channel as its single leading digit and reads it back from there, so an index off the
+     * untrusted Wear Message API is truncated rather than rejected: index 42 yields the key `"42^all"`, whose channel
+     * reads back as 4 — a send to a channel the request never named.
+     */
+    private fun Int.toBroadcastContactKey(): String? {
+        if (this !in 0 until NodeAddress.PKC_CHANNEL_INDEX) return null
+        return ContactKey.broadcast(this).value
+    }
+
+    private fun parseConversation(data: ByteArray): WearableIncomingAction = safeCatching {
+        data.decodeToString(throwOnInvalidSequence = true)
+    }
+        .map { contactKey -> contactKey.takeIf { it.isSupportedContactKey() } }
+        .fold(
+            onSuccess = { contactKey ->
+                contactKey?.let(WearableIncomingAction::OpenConversation) ?: WearableIncomingAction.Malformed
+            },
+            onFailure = { WearableIncomingAction.Malformed },
+        )
 
     private fun parseNode(data: ByteArray): WearableIncomingAction = safeCatching {
         data.decodeToString(throwOnInvalidSequence = true).toIntOrNull()?.let(WearableIncomingAction::OpenNode)
