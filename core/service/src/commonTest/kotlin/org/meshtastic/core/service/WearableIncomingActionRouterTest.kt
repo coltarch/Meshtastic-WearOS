@@ -93,6 +93,34 @@ class WearableIncomingActionRouterTest {
     }
 
     @Test
+    fun `an out-of-range channel index is rejected instead of truncated into a live channel`() {
+        val payload = Json.encodeToString(WearableReply(address = null, channelIndex = 42, text = "hello"))
+
+        assertIs<WearableIncomingAction.Malformed>(
+            router.route("/send_message", payload.encodeToByteArray(), "wear-node"),
+        )
+    }
+
+    @Test
+    fun `the pkc slot is not a broadcast channel`() {
+        val pkcSlot = NodeAddress.PKC_CHANNEL_INDEX
+        val payload = Json.encodeToString(WearableReply(address = null, channelIndex = pkcSlot, text = "hello"))
+
+        assertIs<WearableIncomingAction.Malformed>(
+            router.route("/send_message", payload.encodeToByteArray(), "wear-node"),
+        )
+    }
+
+    @Test
+    fun `the highest configured channel still routes`() {
+        val payload = Json.encodeToString(WearableReply(address = null, channelIndex = 7, text = "hello"))
+
+        val action = router.route("/send_message", payload.encodeToByteArray(), "wear-node")
+
+        assertEquals(WearableIncomingAction.SendMessage("hello", "7^all"), action)
+    }
+
+    @Test
     fun `unknown paths are ignored`() {
         assertIs<WearableIncomingAction.Unknown>(router.route("/unknown", byteArrayOf(), "wear-node"))
     }
