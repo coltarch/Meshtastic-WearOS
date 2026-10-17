@@ -42,9 +42,11 @@ import org.junit.runner.RunWith
 import org.meshtastic.core.common.ContextServices
 import org.meshtastic.core.model.WearableNode
 import org.meshtastic.core.resources.Res
+import org.meshtastic.core.resources.battery
 import org.meshtastic.core.resources.getString
 import org.meshtastic.core.resources.node_unavailable
 import org.meshtastic.core.resources.open_on_phone
+import org.meshtastic.core.resources.snr
 import org.meshtastic.core.resources.wear_node_card_content_description
 import org.meshtastic.wear.presentation.model.WearableNodeRepository
 import org.robolectric.RobolectricTestRunner
@@ -222,8 +224,8 @@ class NodeDetailsScreenTest {
 
         setContent { MaterialTheme { NodeDetailsContent(node = node) } }
 
-        onAllNodesWithText("Battery").assertCountEquals(0)
-        onAllNodesWithText("SNR").assertCountEquals(0)
+        onAllNodesWithText(getString(Res.string.battery)).assertCountEquals(0)
+        onAllNodesWithText(getString(Res.string.snr)).assertCountEquals(0)
     }
 
     @Test
