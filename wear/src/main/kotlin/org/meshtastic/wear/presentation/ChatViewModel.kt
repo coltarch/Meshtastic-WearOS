@@ -22,9 +22,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.meshtastic.core.common.text.QuickReplySelector
 import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
 import org.meshtastic.wear.data.WearCompanionSyncState
@@ -45,7 +49,9 @@ class ChatViewModel(
 
     val messages: StateFlow<List<WearableMessage>> = repository.syncedMessages
     val channels: StateFlow<List<WearableChannel>> = channelRepository.syncedChannels
-    val quickReplies: StateFlow<List<String>?> = quickReplyRepository.replies
+    val quickReplies: StateFlow<List<String>?> =
+        combine(quickReplyRepository.replies, repository.syncedMessages, ::rankQuickReplies)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, quickReplyRepository.replies.value)
     val syncState: StateFlow<WearCompanionSyncState> = dataLayerClient.syncState
 
     fun retrySync() {
@@ -84,5 +90,23 @@ class ChatViewModel(
                 Logger.w { "Conversation could not be opened on the phone" }
             }
         }
+    }
+
+    /**
+     * Orders the synced phrases against the conversation, or `null` when the phone has never sent them — the screen
+     * treats those two states differently, so the distinction is preserved here.
+     */
+    private fun rankQuickReplies(replies: List<String>?, syncedMessages: List<WearableMessage>): List<String>? =
+        replies?.let {
+            QuickReplySelector.select(
+                replies = it,
+                recentTexts = syncedMessages.filterNot(WearableMessage::isMe).map(WearableMessage::text),
+                limit = QUICK_REPLY_LIMIT,
+            )
+        }
+
+    private companion object {
+        /** The reply row is laid out for three chips. */
+        const val QUICK_REPLY_LIMIT = 3
     }
 }
