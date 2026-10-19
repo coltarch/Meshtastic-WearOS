@@ -2132,6 +2132,10 @@
     <string name="waypoint_new">New waypoint</string>
     <string name="waypoint_received">Received waypoint: %1$s</string>
     <!-- WEAR -->
+    <string name="wear_alternate_colors">Alternate colors</string>
+    <string name="wear_maintenance">Maintenance</string>
+    <string name="wear_messages_badge_chats">CHATS</string>
+    <string name="wear_messages_badge_dms">DMS</string>
     <string name="wear_mode_change_continue">Continue</string>
     <string name="wear_no_channels">No channels available</string>
     <string name="wear_no_channels_description">Channels appear after the phone completes synchronization.</string>
@@ -2139,11 +2143,22 @@
     <string name="wear_no_nodes">No nodes available</string>
     <string name="wear_no_nodes_description">Nodes appear after the connected radio receives them.</string>
     <string name="wear_node_card_content_description">Open details for %1$s</string>
+    <string name="wear_node_snr">SNR %1$d</string>
+    <string name="wear_nodes_empty_favorites">No favourites yet</string>
+    <string name="wear_nodes_tab_all">ALL</string>
+    <string name="wear_nodes_tab_favorites">FAV</string>
+    <string name="wear_nodes_title">MESH NODES</string>
     <string name="wear_phone_connection">Phone connection</string>
     <string name="wear_phone_linked">Synchronized</string>
     <string name="wear_phone_linked_description">Phone data is available on this watch.</string>
     <string name="wear_phone_not_linked">Phone unavailable</string>
     <string name="wear_phone_not_linked_description">The phone app must be running and reachable.</string>
+    <string name="wear_private_messages">Private Messages</string>
+    <string name="wear_private_messages_description">Direct chat with nodes</string>
+    <string name="wear_quick_reply">QUICK REPLY</string>
+    <string name="wear_refresh_from_phone">Refresh from phone</string>
+    <string name="wear_reply_mic_keys">Reply (Mic / Keys)</string>
+    <string name="wear_sync_badge">SY</string>
     <string name="wear_sync_failed">Sync failed</string>
     <string name="wear_sync_failed_description">The last attempt did not complete. Previously synchronized data is still available.</string>
     <string name="wear_sync_in_progress">Synchronizing…</string>

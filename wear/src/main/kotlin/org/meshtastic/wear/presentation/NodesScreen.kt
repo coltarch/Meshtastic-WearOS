@@ -71,6 +71,11 @@ import org.meshtastic.core.resources.ic_power
 import org.meshtastic.core.resources.ic_star
 import org.meshtastic.core.resources.wear_no_nodes
 import org.meshtastic.core.resources.wear_no_nodes_description
+import org.meshtastic.core.resources.wear_node_snr
+import org.meshtastic.core.resources.wear_nodes_empty_favorites
+import org.meshtastic.core.resources.wear_nodes_tab_all
+import org.meshtastic.core.resources.wear_nodes_tab_favorites
+import org.meshtastic.core.resources.wear_nodes_title
 import org.meshtastic.core.resources.wear_sync_now
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.presentation.components.CompanionSyncStatus
@@ -144,7 +149,7 @@ private fun NodesHeader(onlineCount: Int, totalCount: Int, syncState: WearCompan
         PulsingDot(color = statusColor, sizeDp = 7)
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "MESH NODES",
+            text = stringResource(Res.string.wear_nodes_title),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp,
@@ -161,9 +166,14 @@ private fun NodesTabSelection(showFavs: Boolean, onTabSelect: (Boolean) -> Unit)
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).padding(bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        TabChip(label = "ALL", selected = !showFavs, onClick = { onTabSelect(false) }, modifier = Modifier.weight(1f))
         TabChip(
-            label = "FAV",
+            label = stringResource(Res.string.wear_nodes_tab_all),
+            selected = !showFavs,
+            onClick = { onTabSelect(false) },
+            modifier = Modifier.weight(1f),
+        )
+        TabChip(
+            label = stringResource(Res.string.wear_nodes_tab_favorites),
             selected = showFavs,
             onClick = { onTabSelect(true) },
             modifier = Modifier.weight(1f),
@@ -189,7 +199,7 @@ private fun EmptyNodes(onRetry: () -> Unit) {
 @Composable
 private fun EmptyFavourites() {
     Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
-        Text("No favourites yet", fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
+        Text(stringResource(Res.string.wear_nodes_empty_favorites), fontSize = 12.sp, color = COLOR_TEXT_SECONDARY)
     }
 }
 
@@ -290,6 +300,8 @@ private fun NodeStatusPills(node: WearableNode) {
                 MiniPill(text = "$batt%", tint = battColor)
             }
         }
-        node.snr?.let { snr -> MiniPill(text = "SNR ${snr.toInt()}", tint = COLOR_TEAL) }
+        node.snr?.let { snr ->
+            MiniPill(text = stringResource(Res.string.wear_node_snr, snr.toInt()), tint = COLOR_TEAL)
+        }
     }
 }
