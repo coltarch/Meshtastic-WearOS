@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,7 +95,11 @@ fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val listState = rememberTransformingLazyColumnState()
 
-    val chatMessages = messages.filter { it.contactKey == contactKey }.sortedByDescending { it.timestamp }
+    val chatMessages =
+        remember(messages, contactKey) {
+            messages.filter { it.contactKey == contactKey }.sortedByDescending { it.timestamp }
+        }
+    val displayedMessages = remember(chatMessages) { chatMessages.reversed() }
     val chatName = chatMessages.firstOrNull { !it.isMe }?.senderName ?: chatMessages.firstOrNull()?.senderName ?: "Chat"
     val validConversation = chatMessages.isNotEmpty() || channels.any { it.contactKey == contactKey }
     val canSend = validConversation && syncState == WearCompanionSyncState.Ready
@@ -123,7 +128,7 @@ fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
                 item { CompanionSyncStatus(state = syncState, onRetry = viewModel::retrySync) }
             }
 
-            items(chatMessages.reversed()) { msg -> MessageBubble(msg) }
+            items(displayedMessages) { msg -> MessageBubble(msg) }
 
             if (chatMessages.isEmpty() && syncState == WearCompanionSyncState.Ready) {
                 item {
