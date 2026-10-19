@@ -23,6 +23,44 @@ future-proofing.
 
 ---
 
+## Status update, 2026-10-19
+
+Same convention as the section below: findings are left as written, and this records where they stand. Added after three
+merges, so the audit stops implying work that is already done.
+
+**Closed since 2026-10-16**
+
+- `A2` — every watch screen's user-visible copy now comes from `core/resources`: 15 sites plus three badge strings, with
+  three existing keys reused rather than duplicated (`open_on_phone`, `channels`, `display`). Four literals stay inline on
+  purpose because they are data or glyphs (`#3`, `12/40`, `85%`, ` *`). PR #24.
+- `C16` — the watch's `channelIndex` is validated before it becomes a contact key: `Int.toBroadcastContactKey()` returns
+  `null` outside `0 until NodeAddress.PKC_CHANNEL_INDEX`, so index 42 can no longer build `"42^all"` and send on channel 4,
+  and 9 is rejected rather than truncated. PR #25, with three tests that run in `shard-feature`.
+- `D8` — the two negative assertions in `NodeDetailsScreenTest` read `getString(Res.string.battery|snr)` instead of English
+  literals. PR #26. **The item's second half is stale**: it cites `wear/src/test/.../SettingsScreenTest.kt:60` and an
+  "Experimental features" label, and neither the file nor the string exists in the tree — that half needs re-deriving or
+  dropping, not fixing.
+
+**Fixed, awaiting merge**
+
+- `A6` — PR #27. `PulsingDot` is a static circle. **The item's rationale did not hold**: the app declares no ambient support
+  (no `AmbientLifecycleObserver`, no `setAmbientEnabled`, a non-ambient activity theme), so the dot never animated into AOD.
+  This is a design change, not a burn-in fix, and `PULSE_DURATION` in `DesignTokens.kt` is now unused.
+- `A10` — PR #28. `ChatScreen` remembers its filter+sort and the reversal; the descending order is kept deliberately, since
+  `chatName` reads `firstOrNull { !it.isMe }`.
+- `B12` — PR #29. The wear manifest's legacy `package` attribute is gone. Note that no CI check can validate this: no
+  workflow builds or lints `:wear`, so the manifest merge is never exercised.
+
+**Reclassified** — `A11` is a Navigation-3 migration (`SwipeDismissableNavHost` → `MeshtasticNavDisplay`) with back handling
+and ViewModel scoping in scope: pro-tier work, not the one-file fix its severity implies.
+
+**Still open** — everything else. Two specifics: `A13` waits behind PR #28, which holds `ChatScreen.kt`; and the four
+user-visible literals from the notification feature (`CHANNEL_NAME`, `CHANNEL_DESCRIPTION`, `REPLY_LABEL`, `SELF_NAME` in
+`WatchNotificationManager`) are consumed synchronously, with no non-composable CMP-resource read path in the codebase yet —
+a decision, not a mechanical string move.
+
+---
+
 ## 0. Status, 2026-10-16
 
 Where each entry stands after the work that followed this audit. The findings below are left as written — this
