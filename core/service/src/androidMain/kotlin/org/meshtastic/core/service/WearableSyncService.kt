@@ -52,7 +52,6 @@ import org.koin.core.annotation.Single
 import org.meshtastic.core.common.util.nowMillis
 import org.meshtastic.core.common.util.safeCatching
 import org.meshtastic.core.di.CoroutineDispatchers
-import org.meshtastic.core.model.ConnectionState
 import org.meshtastic.core.model.ContactKey
 import org.meshtastic.core.model.MessageStatus
 import org.meshtastic.core.model.Node
@@ -61,8 +60,6 @@ import org.meshtastic.core.model.WatchSyncCategory
 import org.meshtastic.core.model.WatchSyncPaths
 import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
-import org.meshtastic.core.model.WearableNode
-import org.meshtastic.core.model.WearableRadioStatus
 import org.meshtastic.core.repository.NodeRepository
 import org.meshtastic.core.repository.PacketRepository
 import org.meshtastic.core.repository.QuickChatActionRepository
@@ -330,7 +327,7 @@ class WearableSyncService(
                 sendPayload(
                     PATH_RADIO_STATUS,
                     KEY_RADIO_STATUS,
-                    json.encodeToString(createWearableRadioStatus()),
+                    json.encodeToString(createWearableRadioStatus(nodeRepository.ourNodeInfo.value, serviceRepository.connectionState.value)),
                     targetNodeIds,
                 ) && allPayloadsSent
         }
@@ -358,17 +355,6 @@ class WearableSyncService(
             repositoryInvalidations.trySend(Unit)
         }
     }
-
-    private fun Node.toWearableNode(includeRadioStatus: Boolean) = WearableNode(
-        num = num,
-        name = user.long_name,
-        shortName = user.short_name,
-        online = includeRadioStatus && isOnline,
-        battery = batteryLevel.takeIf { includeRadioStatus },
-        snr = snrOrNull.takeIf { includeRadioStatus },
-        lastSeen = if (includeRadioStatus) lastHeard.toLong() * MILLIS_PER_SECOND else 0L,
-        favorite = isFavorite,
-    )
 
     private suspend fun createWearableChannels(): List<WearableChannel> {
         val channelSet = radioConfigRepository.channelSetFlow.first()
@@ -422,19 +408,6 @@ class WearableSyncService(
                     status = message.status ?: MessageStatus.RECEIVED,
                 )
             }
-    }
-
-    private fun createWearableRadioStatus(): WearableRadioStatus {
-        val node = nodeRepository.ourNodeInfo.value
-        return WearableRadioStatus(
-            connected = serviceRepository.connectionState.value == ConnectionState.Connected,
-            batteryLevel = node?.batteryLevel,
-            voltage = node?.voltage,
-            snr = node?.snrOrNull,
-            lastSeen = node?.lastHeard?.toLong()?.times(MILLIS_PER_SECOND),
-            temperature = node?.environmentMetrics?.temperature,
-            relativeHumidity = node?.environmentMetrics?.relative_humidity,
-        )
     }
 
     /** Clears every category on the reachable watch and ends the sync when connectivity is turned off. */
@@ -546,7 +519,6 @@ class WearableSyncService(
         private const val KEY_QUICK_REPLIES = "quick_replies_json"
         private const val KEY_RADIO_STATUS = "radio_status_json"
         private const val KEY_TIMESTAMP = "timestamp"
-        private const val MILLIS_PER_SECOND = 1_000L
         private const val UNKNOWN_SHORT_NAME = "??"
         private val REPOSITORY_SYNC_DEBOUNCE = 750.milliseconds
     }
