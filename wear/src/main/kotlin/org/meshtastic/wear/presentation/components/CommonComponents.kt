@@ -18,11 +18,6 @@
 
 package org.meshtastic.wear.presentation.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +32,6 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +48,6 @@ import org.meshtastic.wear.presentation.COLOR_BG_DEEP
 import org.meshtastic.wear.presentation.COLOR_SURFACE2
 import org.meshtastic.wear.presentation.COLOR_TEAL
 import org.meshtastic.wear.presentation.COLOR_TEXT_SECONDARY
-import org.meshtastic.wear.presentation.PULSE_DURATION
 
 @Composable
 fun MiniPill(text: String, tint: Color, icon: ImageVector? = null) {
@@ -113,17 +106,10 @@ fun TabChip(
     }
 }
 
+// Steady rather than pulsing; the name is kept because its call sites live in files this change does not touch.
 @Composable
 fun PulsingDot(color: Color, sizeDp: Int) {
-    val transition = rememberInfiniteTransition(label = "pulse")
-    val alpha by
-        transition.animateFloat(
-            initialValue = 0.25f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(PULSE_DURATION), RepeatMode.Reverse),
-            label = "alpha",
-        )
-    Canvas(modifier = Modifier.size(sizeDp.dp)) { drawCircle(color = color.copy(alpha = alpha)) }
+    Canvas(modifier = Modifier.size(sizeDp.dp)) { drawCircle(color = color) }
 }
 
 @Composable
