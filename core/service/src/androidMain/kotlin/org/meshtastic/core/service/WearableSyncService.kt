@@ -327,7 +327,12 @@ class WearableSyncService(
                 sendPayload(
                     PATH_RADIO_STATUS,
                     KEY_RADIO_STATUS,
-                    json.encodeToString(createWearableRadioStatus(nodeRepository.ourNodeInfo.value, serviceRepository.connectionState.value)),
+                    json.encodeToString(
+                        createWearableRadioStatus(
+                            nodeRepository.ourNodeInfo.value,
+                            serviceRepository.connectionState.value,
+                        ),
+                    ),
                     targetNodeIds,
                 ) && allPayloadsSent
         }

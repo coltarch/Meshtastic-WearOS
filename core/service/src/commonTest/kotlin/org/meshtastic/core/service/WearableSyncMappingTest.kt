@@ -20,6 +20,7 @@ import org.meshtastic.core.model.ConnectionState
 import org.meshtastic.core.model.Node
 import org.meshtastic.core.model.WatchSyncCategory
 import org.meshtastic.core.repository.WatchSyncPreferences
+import org.meshtastic.core.repository.toSyncPlan
 import org.meshtastic.proto.DeviceMetrics
 import org.meshtastic.proto.EnvironmentMetrics
 import org.meshtastic.proto.User
@@ -51,16 +52,15 @@ class WearableSyncMappingTest {
     @Test
     fun `radio status maps telemetry and converts last heard to millis`() {
         val node =
-            Node(
+            testNode(
                 num = 1,
-                user = User.Builder().also { it.long_name = "Long"; it.short_name = "L" }.build(),
                 lastHeard = 1_700_000_000,
                 snr = 12.5f,
-                deviceMetrics = DeviceMetrics.Builder().also { it.battery_level = 87; it.voltage = 4.1f }.build(),
-                environmentMetrics =
-                    EnvironmentMetrics.Builder().also { it.temperature = 21.5f; it.relative_humidity = 45f }.build(),
+                batteryLevel = 87,
+                voltage = 4.1f,
+                temperature = 21.5f,
+                humidity = 45f,
             )
-
         val status = createWearableRadioStatus(node, ConnectionState.Connected)
 
         assertEquals(87, status.batteryLevel)
@@ -73,16 +73,7 @@ class WearableSyncMappingTest {
 
     @Test
     fun `wearable node without radio status strips telemetry and forces offline`() {
-        val node =
-            Node(
-                num = 7,
-                user = User.Builder().also { it.long_name = "Long"; it.short_name = "L" }.build(),
-                lastHeard = Int.MAX_VALUE,
-                snr = 5.0f,
-                deviceMetrics = DeviceMetrics.Builder().also { it.battery_level = 62 }.build(),
-                isFavorite = true,
-            )
-
+        val node = testNode(num = 7, isFavorite = true)
         val wearable = node.toWearableNode(includeRadioStatus = false)
 
         assertEquals(7, wearable.num)
@@ -98,15 +89,13 @@ class WearableSyncMappingTest {
     @Test
     fun `wearable node with radio status maps telemetry and liveness`() {
         val node =
-            Node(
+            testNode(
                 num = 7,
-                user = User.Builder().also { it.long_name = "Long"; it.short_name = "L" }.build(),
                 lastHeard = Int.MAX_VALUE,
                 snr = 5.0f,
-                deviceMetrics = DeviceMetrics.Builder().also { it.battery_level = 62 }.build(),
+                batteryLevel = 62,
                 isFavorite = true,
             )
-
         val wearable = node.toWearableNode(includeRadioStatus = true)
 
         assertTrue(wearable.online)
@@ -132,4 +121,34 @@ class WearableSyncMappingTest {
         assertEquals(WatchSyncCategory.entries, nothingEnabled.toSyncPlan().disabledCategories)
         assertTrue(WatchSyncPreferences().hasEnabledCategory)
     }
+}
+
+private fun testNode(
+    num: Int,
+    lastHeard: Int = 0,
+    snr: Float = 0f,
+    batteryLevel: Int? = null,
+    voltage: Float? = null,
+    temperature: Float? = null,
+    humidity: Float? = null,
+    isFavorite: Boolean = false,
+): Node {
+    val user = User.Builder()
+    user.long_name = "Long"
+    user.short_name = "L"
+    val deviceMetrics = DeviceMetrics.Builder()
+    deviceMetrics.battery_level = batteryLevel
+    deviceMetrics.voltage = voltage
+    val environmentMetrics = EnvironmentMetrics.Builder()
+    environmentMetrics.temperature = temperature
+    environmentMetrics.relative_humidity = humidity
+    return Node(
+        num = num,
+        user = user.build(),
+        lastHeard = lastHeard,
+        snr = snr,
+        deviceMetrics = deviceMetrics.build(),
+        environmentMetrics = environmentMetrics.build(),
+        isFavorite = isFavorite,
+    )
 }

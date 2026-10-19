@@ -34,16 +34,15 @@ internal fun createWearableRadioStatus(node: Node?, connectionState: ConnectionS
     )
 
 /** Maps a mesh node to its wearable form, including telemetry only when the category is enabled. */
-internal fun Node.toWearableNode(includeRadioStatus: Boolean): WearableNode =
-    WearableNode(
-        num = num,
-        name = user.long_name,
-        shortName = user.short_name,
-        online = includeRadioStatus && isOnline,
-        battery = batteryLevel.takeIf { includeRadioStatus },
-        snr = snrOrNull.takeIf { includeRadioStatus },
-        lastSeen = if (includeRadioStatus) lastHeard.toLong() * MILLIS_PER_SECOND else 0L,
-        favorite = isFavorite,
-    )
+internal fun Node.toWearableNode(includeRadioStatus: Boolean): WearableNode = WearableNode(
+    num = num,
+    name = user.long_name,
+    shortName = user.short_name,
+    online = includeRadioStatus && isOnline,
+    battery = batteryLevel.takeIf { includeRadioStatus },
+    snr = snrOrNull.takeIf { includeRadioStatus },
+    lastSeen = if (includeRadioStatus) lastHeard.toLong() * MILLIS_PER_SECOND else 0L,
+    favorite = isFavorite,
+)
 
 private const val MILLIS_PER_SECOND = 1_000L
