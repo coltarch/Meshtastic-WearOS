@@ -139,23 +139,28 @@ fun ChatScreen(contactKey: String, viewModel: ChatViewModel = koinViewModel()) {
                 }
             }
 
-            if (canSend) {
-                item { ChatDivider() }
+            // Rendered whether or not sync is Ready: the reply affordances are disabled, never hidden. A control
+            // that disappears reads as a bug, and these chips are how the feature gets discovered.
+            item { ChatDivider() }
 
-                item {
-                    val quickReplies = syncedQuickReplies.orEmpty()
-                    if (quickReplies.isNotEmpty()) {
-                        QuickReplySection(replies = quickReplies, onReply = { viewModel.sendMessage(contactKey, it) })
-                    }
-                }
-
-                item {
-                    ReplyActions(
-                        chatName = chatName,
-                        launcher = launcher,
-                        onOpenOnPhone = { viewModel.openOnPhone(contactKey) },
+            item {
+                val quickReplies = syncedQuickReplies.orEmpty()
+                if (quickReplies.isNotEmpty()) {
+                    QuickReplySection(
+                        replies = quickReplies,
+                        onReply = { viewModel.sendMessage(contactKey, it) },
+                        enabled = canSend,
                     )
                 }
+            }
+
+            item {
+                ReplyActions(
+                    chatName = chatName,
+                    launcher = launcher,
+                    onOpenOnPhone = { viewModel.openOnPhone(contactKey) },
+                    sendEnabled = canSend,
+                )
             }
 
             item { Spacer(Modifier.height(16.dp)) }
@@ -201,7 +206,7 @@ private fun ChatDivider() {
 }
 
 @Composable
-private fun QuickReplySection(replies: List<String>, onReply: (String) -> Unit) {
+private fun QuickReplySection(replies: List<String>, onReply: (String) -> Unit, enabled: Boolean) {
     Column {
         Text(
             text = stringResource(Res.string.wear_quick_reply),
@@ -221,11 +226,16 @@ private fun QuickReplySection(replies: List<String>, onReply: (String) -> Unit) 
                         .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(COLOR_SURFACE2)
-                        .clickable(role = Role.Button) { onReply(qr) }
+                        .clickable(enabled = enabled, role = Role.Button) { onReply(qr) }
                         .padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(qr, fontSize = 11.sp, color = COLOR_TEAL, fontWeight = FontWeight.Medium)
+                    Text(
+                        qr,
+                        fontSize = 11.sp,
+                        color = if (enabled) COLOR_TEAL else COLOR_TEXT_SECONDARY,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             }
         }
@@ -237,6 +247,7 @@ private fun ReplyActions(
     chatName: String,
     launcher: ManagedActivityResultLauncher<Intent, ActivityResult>,
     onOpenOnPhone: () -> Unit,
+    sendEnabled: Boolean,
 ) {
     Column {
         Button(
@@ -247,6 +258,7 @@ private fun ReplyActions(
                 launcher.launch(intent)
             },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            enabled = sendEnabled,
             colors = ButtonDefaults.buttonColors(containerColor = COLOR_TEAL_DIM),
         ) {
             Text(
