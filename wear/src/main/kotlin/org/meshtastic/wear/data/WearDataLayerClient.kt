@@ -26,8 +26,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.seconds
 import org.meshtastic.core.service.WearableIncomingActionRouter
+import kotlin.time.Duration.Companion.seconds
 
 sealed interface WearCompanionSyncState {
     data object Loading : WearCompanionSyncState
