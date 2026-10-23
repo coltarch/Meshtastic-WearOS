@@ -51,8 +51,14 @@ merges, so the audit stops implying work that is already done.
 - `B12` — PR #29. The wear manifest's legacy `package` attribute is gone. Note that no CI check can validate this: no
   workflow builds or lints `:wear`, so the manifest merge is never exercised.
 
-**Reclassified** — `A11` is a Navigation-3 migration (`SwipeDismissableNavHost` → `MeshtasticNavDisplay`) with back handling
-and ViewModel scoping in scope: pro-tier work, not the one-file fix its severity implies.
+**Exempt, not fixed** — `A11`: the wear navigation host stays as it is. Google's Wear Compose navigation guide names
+`SwipeDismissableNavHost` as the navigation host on Wear OS — "the navigation host which, on Wear OS, is
+`SwipeDismissableNavHost`" ([Navigation with Compose for Wear OS][wear-nav]) — so `androidx.wear.compose.navigation` is the
+platform-specified choice for a watch app. `AGENTS.md`'s preference for `MeshtasticNavDisplay` governs the phone app.
+Migrating would swap a supported wear API for a phone-navigation stack on the watch, which is why this is recorded as a
+deliberate exemption rather than deferred work.
+
+[wear-nav]: https://developer.android.com/training/wearables/compose/navigation
 
 **Still open** — everything else. Two specifics: `A13` waits behind PR #28, which holds `ChatScreen.kt`; and the four
 user-visible literals from the notification feature (`CHANNEL_NAME`, `CHANNEL_DESCRIPTION`, `REPLY_LABEL`, `SELF_NAME` in
