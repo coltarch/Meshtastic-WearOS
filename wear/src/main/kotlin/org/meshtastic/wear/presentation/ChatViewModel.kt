@@ -31,9 +31,9 @@ import kotlinx.serialization.json.Json
 import org.meshtastic.core.common.text.QuickReplySelector
 import org.meshtastic.core.model.WearableChannel
 import org.meshtastic.core.model.WearableMessage
+import org.meshtastic.core.service.WearableIncomingActionRouter
 import org.meshtastic.wear.data.WearCompanionSyncState
 import org.meshtastic.wear.data.WearDataLayerClient
-import org.meshtastic.wear.data.WearDataLayerPaths
 import org.meshtastic.wear.presentation.model.WearableChannelRepository
 import org.meshtastic.wear.presentation.model.WearableMessageRepository
 import org.meshtastic.wear.presentation.model.WearableQuickReplyRepository
@@ -64,7 +64,8 @@ class ChatViewModel(
             try {
                 val replyJson = json.encodeToString(reply)
 
-                if (dataLayerClient.sendCommand(WearDataLayerPaths.SEND_MESSAGE, replyJson.encodeToByteArray())) {
+                val path = WearableIncomingActionRouter.PATH_SEND_MESSAGE
+                if (dataLayerClient.sendCommand(path, replyJson.encodeToByteArray())) {
                     Logger.d { "Wear reply sent through the phone" }
                 } else {
                     Logger.w { "Wear reply could not be sent through the phone" }
@@ -81,7 +82,7 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 dataLayerClient.sendCommand(
-                    WearDataLayerPaths.OPEN_CONVERSATION_ON_PHONE,
+                    WearableIncomingActionRouter.PATH_OPEN_ON_PHONE,
                     contactKey.encodeToByteArray(),
                 )
             } catch (cancellation: CancellationException) {

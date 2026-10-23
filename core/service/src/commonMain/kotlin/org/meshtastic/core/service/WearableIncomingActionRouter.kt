@@ -22,7 +22,7 @@ import org.meshtastic.core.model.ContactKey
 import org.meshtastic.core.model.NodeAddress
 import org.meshtastic.core.model.WearableReply
 
-internal sealed interface WearableIncomingAction {
+sealed interface WearableIncomingAction {
     data class RequestSync(val sourceNodeId: String) : WearableIncomingAction
 
     data class SendMessage(val text: String, val contactKey: String) : WearableIncomingAction
@@ -37,7 +37,7 @@ internal sealed interface WearableIncomingAction {
 }
 
 /** Parses untrusted Wear Message API input without invoking Android or repository APIs. */
-internal class WearableIncomingActionRouter(private val json: Json = Json { ignoreUnknownKeys = true }) {
+class WearableIncomingActionRouter(private val json: Json = Json { ignoreUnknownKeys = true }) {
     fun route(path: String, data: ByteArray, sourceNodeId: String): WearableIncomingAction = when (path) {
         PATH_REQUEST_SYNC -> WearableIncomingAction.RequestSync(sourceNodeId)
         PATH_SEND_MESSAGE -> parseReply(data)
