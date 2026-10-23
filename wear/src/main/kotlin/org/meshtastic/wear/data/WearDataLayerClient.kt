@@ -27,6 +27,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
+import org.meshtastic.core.service.WearableIncomingActionRouter
 
 sealed interface WearCompanionSyncState {
     data object Loading : WearCompanionSyncState
@@ -117,7 +118,8 @@ class PlayServicesWearDataLayerClient(
                     withTimeoutOrNull(COMMAND_TIMEOUT) {
                         nodes
                             .map { node ->
-                                messageClient.sendMessage(node.id, WearDataLayerPaths.REQUEST_SYNC, null).await()
+                                val path = WearableIncomingActionRouter.PATH_REQUEST_SYNC
+                                messageClient.sendMessage(node.id, path, null).await()
                             }
                             .isNotEmpty()
                     } ?: false
@@ -169,11 +171,4 @@ class PlayServicesWearDataLayerClient(
         val COMMAND_TIMEOUT = 10.seconds
         val SYNC_TIMEOUT = 30.seconds
     }
-}
-
-object WearDataLayerPaths {
-    const val OPEN_CONVERSATION_ON_PHONE = "/open_on_phone"
-    const val OPEN_NODE_ON_PHONE = "/open_node_on_phone"
-    const val REQUEST_SYNC = "/request_sync"
-    const val SEND_MESSAGE = "/send_message"
 }

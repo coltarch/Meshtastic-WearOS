@@ -23,15 +23,15 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.meshtastic.core.service.WearableIncomingActionRouter
 import org.meshtastic.wear.data.WearDataLayerClient
-import org.meshtastic.wear.data.WearDataLayerPaths
 
 class NodeDetailsViewModel(private val dataLayerClient: WearDataLayerClient) : ViewModel() {
     fun openOnPhone(nodeNum: Int) {
         viewModelScope.launch {
             try {
                 dataLayerClient.sendCommand(
-                    WearDataLayerPaths.OPEN_NODE_ON_PHONE,
+                    WearableIncomingActionRouter.PATH_OPEN_NODE_ON_PHONE,
                     nodeNum.toString().encodeToByteArray(),
                 )
             } catch (cancellation: CancellationException) {

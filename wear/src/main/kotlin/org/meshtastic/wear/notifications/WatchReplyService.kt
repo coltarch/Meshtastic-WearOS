@@ -27,8 +27,8 @@ import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.meshtastic.core.common.di.ApplicationCoroutineScope
+import org.meshtastic.core.service.WearableIncomingActionRouter
 import org.meshtastic.wear.data.WearDataLayerClient
-import org.meshtastic.wear.data.WearDataLayerPaths
 import org.meshtastic.wear.presentation.WearableReplyFactory
 import org.meshtastic.wear.presentation.model.WearableMessageRepository
 
@@ -66,7 +66,7 @@ class WatchReplyService :
             try {
                 val reply = replyFactory.create(contactKey = contactKey, text = text)
                 val payload = json.encodeToString(reply).encodeToByteArray()
-                if (!dataLayerClient.sendCommand(WearDataLayerPaths.SEND_MESSAGE, payload)) {
+                if (!dataLayerClient.sendCommand(WearableIncomingActionRouter.PATH_SEND_MESSAGE, payload)) {
                     Logger.w { "Watch reply could not be sent through the phone" }
                 }
             } catch (cancellation: CancellationException) {
